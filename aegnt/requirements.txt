@@ -1,0 +1,4 @@
+google-adk
+google-generativeai
+httpx
+python-dotenv

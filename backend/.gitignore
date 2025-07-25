@@ -1,0 +1,10 @@
+.env
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*prompt.md
+
+creds/
+venv/
+*ServiceAccount.json
