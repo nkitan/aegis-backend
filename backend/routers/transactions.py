@@ -31,9 +31,20 @@ def process_transaction(file: UploadFile = File(...), current_user: User = Depen
     receipt_data["items"] = categorized_items
 
     # 3. Save the structured data to Firestore
+    # Handle the transaction date
+    try:
+        if "transaction_date" in receipt_data and receipt_data["transaction_date"]:
+            # Try to parse the date from the receipt
+            transaction_date = datetime.fromisoformat(receipt_data["transaction_date"].replace('Z', '+00:00'))
+        else:
+            transaction_date = datetime.now()
+    except (ValueError, AttributeError):
+        # If date parsing fails, use current time
+        transaction_date = datetime.now()
+
     transaction_data = {
         "user_id": current_user.uid,
-        "transaction_date": datetime.fromisoformat(receipt_data["transaction_date"]) if "transaction_date" in receipt_data else datetime.now(),
+        "transaction_date": transaction_date,
         **receipt_data
     }
     transaction_id = firestore_service.add_transaction(current_user.uid, transaction_data)
@@ -49,14 +60,31 @@ def process_transaction(file: UploadFile = File(...), current_user: User = Depen
             firestore_service.update_transaction(current_user.uid, transaction_id, {"location": location})
 
     # 5. Trigger the creation of a Google Wallet pass
-    wallet_pass_data = {
-        "transaction_id": transaction_id,
-        "store_name": transaction_data.get("store_name"),
-        "total_amount": transaction_data.get("total_amount"),
-        "transaction_date": transaction_data.get("transaction_date").isoformat(),
-        "category": transaction_data.get("category")
-    }
-    google_wallet_service.create_pass("transaction", wallet_pass_data)
+    try:
+        # Format the transaction date for the wallet pass
+        if isinstance(transaction_data.get("transaction_date"), datetime):
+            formatted_date = transaction_data["transaction_date"].isoformat()
+        else:
+            # If it's already a string, use it as is
+            formatted_date = str(transaction_data.get("transaction_date", datetime.now().isoformat()))
+
+        wallet_pass_data = {
+            "transaction_id": transaction_id,
+            "store_name": transaction_data.get("store_name"),
+            "total_amount": transaction_data.get("total_amount"),
+            "transaction_date": formatted_date,
+            "category": transaction_data.get("category"),
+            "location": transaction_data.get("location", transaction_data.get("store_location", {}))
+        }
+        
+        # Create the wallet pass with explicit pass type
+        google_wallet_service.create_pass(
+            pass_type="transaction",
+            pass_data=wallet_pass_data
+        )
+    except Exception as e:
+        print(f"Warning: Failed to create wallet pass: {str(e)}")
+        # Don't raise the error, as we still want to return the transaction data
 
     return {"status": "success", "transaction_id": transaction_id}
 

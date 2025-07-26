@@ -1,119 +1,151 @@
 
 from core.config import settings
 import json
-import google.auth
-import googleapiclient.discovery
+from datetime import datetime, timezone
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from google.auth import jwt, crypt
+import logging
+
+logger = logging.getLogger(__name__)
 
 class GoogleWalletService:
     def __init__(self):
-        credentials, project_id = google.auth.load_credentials_from_file(
-            settings.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY_FILE,
-            scopes=["https://www.googleapis.com/auth/walletobjects"]
-        )
-        self.wallet_service = googleapiclient.discovery.build(
-            "walletobjects", "v1", credentials=credentials
-        )
+        """Initialize the Google Wallet service with service account credentials."""
+        try:
+            self.credentials = Credentials.from_service_account_file(
+                settings.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY_FILE,
+                scopes=['https://www.googleapis.com/auth/wallet_object.issuer']
+            )
+            self.client = build('walletobjects', 'v1', credentials=self.credentials)
+        except Exception as e:
+            logger.error(f"Error initializing Google Wallet service: {str(e)}")
+            raise
 
-    def create_pass(self, pass_data: dict) -> str:
-        issuer_id = settings.GOOGLE_WALLET_ISSUER_ID
-        class_suffix = "transaction_class"
-        object_suffix = pass_data["transaction_id"]
+    def create_pass(self, pass_type: str, pass_data: dict) -> str:
+        """
+        Creates a Google Wallet pass for the given type and data.
+        
+        Args:
+            pass_type: The type of pass to create (e.g., 'transaction', 'loyalty', etc.)
+            pass_data: The data to include in the pass
+            
+        Returns:
+            str: The "Add to Google Wallet" URL
+            
+        Raises:
+            ValueError: If required data is missing
+            Exception: If there's an error creating the pass
+        """
+        try:
+            issuer_id = settings.GOOGLE_WALLET_ISSUER_ID
+            if not issuer_id:
+                raise ValueError("GOOGLE_WALLET_ISSUER_ID is not configured")
 
-        # Define the Generic Class
-        generic_class = {
-            "id": f"{issuer_id}.{class_suffix}",
-            "classTemplateInfo": {
-                "cardTemplateOverride": {
-                    "cardRowTemplateInfo": {
-                        "twoItems": {
-                            "startItem": {
-                                "fieldSelector": {
-                                    "fields": [
-                                        {"fieldPath": "textModulesData['store']"}
-                                    ]
-                                }
-                            },
-                            "endItem": {
-                                "fieldSelector": {
-                                    "fields": [
-                                        {"fieldPath": "textModulesData['totalAmount']"}
-                                    ]
+            class_suffix = f"{pass_type}_class"
+            object_suffix = pass_data.get("transaction_id")
+            if not object_suffix:
+                raise ValueError("transaction_id is required in pass_data")
+
+            # Define the Generic Class with minimal required fields
+            generic_class = {
+                "id": f"{issuer_id}.{class_suffix}",
+                "classTemplateInfo": {
+                    "cardTemplateOverride": {
+                        "cardRowTemplateInfo": {
+                            "twoItems": {
+                                "startItem": {
+                                    "firstValue": {
+                                        "fields": [{"fieldPath": "object.textModulesData['store']"}]
+                                    }
+                                },
+                                "endItem": {
+                                    "firstValue": {
+                                        "fields": [{"fieldPath": "object.textModulesData['totalAmount']"}]
+                                    }
                                 }
                             }
                         }
                     }
-                }
-            },
-            "textModulesData": [
-                {"header": "Store", "body": "N/A", "id": "store"},
-                {"header": "Total Amount", "body": "N/A", "id": "totalAmount"},
-                {"header": "Date", "body": "N/A", "id": "date"},
-                {"header": "Category", "body": "N/A", "id": "category"},
-                {"header": "Items", "body": "N/A", "id": "items"},
-            ],
-            "reviewStatus": "UNDER_REVIEW",
-            "multipleObjectsCreateMode": "MULTIPLE_OBJECTS_CREATE_MODE_UNSPECIFIED",
-        }
+                },
+                "reviewStatus": "UNDER_REVIEW"  # Required for updates
+            }
 
-        # Try to get the class, if it doesn't exist, create it
-        try:
-            self.wallet_service.genericclass().get(resourceId=f"{issuer_id}.{class_suffix}").execute()
-        except googleapiclient.errors.HttpError as e:
-            if e.resp.status == 404:
-                self.wallet_service.genericclass().insert(body=generic_class).execute()
-            else:
-                raise
+            # No need to explicitly create the class - it will be created when the user adds the pass
 
-        # Define the Generic Object
-        generic_object = {
-            "id": f"{issuer_id}.{object_suffix}",
-            "classId": f"{issuer_id}.{class_suffix}",
-            "state": "ACTIVE",
-            "barcode": {
-                "type": "QR_CODE",
-                "value": json.dumps(pass_data),
-                "alternateText": f"Transaction ID: {pass_data['transaction_id']}",
-            },
-            "textModulesData": [
-                {"header": "Store", "body": pass_data.get("store_name", "N/A"), "id": "store"},
-                {"header": "Total Amount", "body": f"${pass_data.get('total_amount', 0.0):.2f}", "id": "totalAmount"},
-                {"header": "Date", "body": pass_data.get("transaction_date", "N/A"), "id": "date"},
-                {"header": "Category", "body": pass_data.get("category", "N/A"), "id": "category"},
-                {"header": "Items", "body": ", ".join(pass_data.get("items", [])), "id": "items"},
-            ],
-            "linksModuleData": {
-                "uris": [
-                    {
-                        "uri": "https://localhost:8000/transaction_details",
-                        "description": "View transaction details",
-                        "id": "transactionDetails",
+            # Define the Generic Object with required fields
+            generic_object = {
+                "id": f"{issuer_id}.{object_suffix}",
+                "classId": f"{issuer_id}.{class_suffix}",
+                "state": "ACTIVE",
+                "cardTitle": {
+                    "defaultValue": {
+                        "language": "en",
+                        "value": f"{pass_data.get('store_name', 'Transaction')} Receipt"
                     }
-                ]
-            },
-        }
+                },
+                "header": {
+                    "defaultValue": {
+                        "language": "en",
+                        "value": f"${pass_data.get('total_amount', 0.0):.2f}"
+                    }
+                },
+                "barcode": {
+                    "type": "QR_CODE",
+                    "value": json.dumps(pass_data),
+                    "alternateText": f"Transaction ID: {pass_data['transaction_id']}"
+                },
+                "textModulesData": [
+                    {"header": "Store", "body": pass_data.get("store_name", "N/A"), "id": "store"},
+                    {"header": "Total Amount", "body": f"${pass_data.get('total_amount', 0.0):.2f}", "id": "totalAmount"},
+                    {"header": "Date", "body": pass_data.get("transaction_date", "N/A"), "id": "date"},
+                    {"header": "Category", "body": pass_data.get("category", "N/A"), "id": "category"},
+                    {"header": "Items", "body": ", ".join([i.get('name', 'Unknown') for i in pass_data.get("items", [])]), "id": "items"}
+                ],
+                "hexBackgroundColor": "#4285f4",
+                "logo": {
+                    "sourceUri": {
+                        "uri": "https://storage.googleapis.com/wallet-lab-tools-codelab-artifacts-public/pass_google_logo.jpg"
+                    },
+                    "contentDescription": {
+                        "defaultValue": {
+                            "language": "en",
+                            "value": "Aegis Logo"
+                        }
+                    }
+                }
+            }
 
-        # Create the Generic Object
-        self.wallet_service.genericobject().insert(body=generic_object).execute()
+            # Add optional location if available
+            if store_location := pass_data.get("store_location"):
+                location_data = {
+                    "address": store_location.get("address", ""),
+                    "city": store_location.get("city", ""),
+                    "state": store_location.get("state", ""),
+                    "postalCode": store_location.get("postal_code", ""),
+                    "country": store_location.get("country", "")
+                }
+                if all(location_data.values()):  # Only add if we have all location fields
+                    generic_object["locations"] = [{"kind": "walletobjects#latLongPoint", **location_data}]
 
-        # Generate the "Add to Google Wallet" URL
-        jwt_payload = {
-            "aud": "google",
-            "iss": "google.com",
-            "iat": google.auth.datetime.datetime.utcnow().timestamp(),
-            "typ": "savetowallet",
-            "origins": [],
-            "payload": {"genericObjects": [generic_object]},
-        }
+            # Create JWT claims with both class and object definitions
+            claims = {
+                "iss": self.credentials.service_account_email,
+                "aud": "google",
+                "origins": ["https://localhost:8000"],
+                "typ": "savetowallet",
+                "payload": {
+                    "genericClasses": [generic_class],
+                    "genericObjects": [generic_object]
+                },
+                "iat": int(datetime.now(timezone.utc).timestamp()),
+                "exp": int(datetime.now(timezone.utc).timestamp() + 3600)  # Token expires in 1 hour
+            }
 
-        # The GoogleWalletPassGenerator library handles JWT signing.
-        # Since we are using the raw API, we need to sign the JWT manually.
-        # This requires the private key from the service account file.
-        # For simplicity, I'll assume the GoogleWalletPassGenerator library
-        # has a utility for this or we'll need to implement it.
-        # For now, I'll use a placeholder for the JWT.
-        # In a real application, you would use a library like `PyJWT` to sign this.
-
-        signer = crypt.RSASigner.from_service_account_file(settings.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY_FILE)
-        token = jwt.encode(signer, jwt_payload).decode('utf-8')
-        return f"https://pay.google.com/gp/v/save/{token}"
+            signer = crypt.RSASigner.from_service_account_file(settings.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY_FILE)
+            token = jwt.encode(signer, claims)
+            return f"https://pay.google.com/gp/v/save/{token}"
+        except Exception as e:
+            logger.error(f"Error creating Google Wallet pass: {str(e)}")
+            raise

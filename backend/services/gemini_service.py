@@ -78,12 +78,57 @@ class GeminiService:
 
     def categorize_items(self, items: list) -> list:
         """
-        Uses Gemini to categorize a list of items.
+        Uses Gemini Pro to categorize items from a receipt.
         """
-        prompt = f"Categorize the following items into one of these categories: Groceries, Restaurant, Electronics, Clothing, Entertainment, Utilities, Transport, Health, Education, Other. Return a JSON array of objects with 'name' and 'category' fields. Items: {json.dumps(items)}"
-        response = self.model.generate_content([prompt])
+        if not items:
+            return []
+
+        prompt = f"""Categorize these items and return a JSON array with each item having a 'category' field.
+        Use only these categories: Groceries, Restaurant, Electronics, Clothing, Home, Entertainment, Transportation, Healthcare, or Other.
+        
+        Original items: {json.dumps(items)}
+        
+        Example response format:
+        [
+            {{"name": "item name", "quantity": 1, "price": 10.99, "category": "Groceries"}},
+            {{"name": "another item", "quantity": 2, "price": 25.99, "category": "Electronics"}}
+        ]
+        
+        Ensure the response is valid JSON and preserve all original fields while adding or updating the category.
+        """
+
         try:
-            return json.loads(response.text)
-        except json.JSONDecodeError:
-            print(f"Error decoding JSON from Gemini API for categorization: {response.text}")
-            return items # Return original items if categorization fails
+            response = self.model.generate_content(prompt)
+            if not response.text:
+                print("Warning: Empty response from Gemini API")
+                return items
+
+            # Try to parse the response, looking for JSON content
+            try:
+                # First try direct JSON parsing
+                categorized_items = json.loads(response.text)
+            except json.JSONDecodeError:
+                # If that fails, try to find JSON array in the text
+                import re
+                json_match = re.search(r'\[(.*?)\]', response.text.replace('\n', ''), re.DOTALL)
+                if json_match:
+                    categorized_items = json.loads(f"[{json_match.group(1)}]")
+                else:
+                    raise ValueError("No valid JSON array found in response")
+
+            # Validate the response
+            if not isinstance(categorized_items, list):
+                raise ValueError("Response is not a list")
+
+            # Merge categories back into original items
+            for orig_item, cat_item in zip(items, categorized_items):
+                if isinstance(cat_item, dict) and 'category' in cat_item:
+                    orig_item['category'] = cat_item['category']
+
+            return items
+
+        except Exception as e:
+            print(f"Error in categorization: {str(e)}")
+            print(f"Raw response: {response.text if 'response' in locals() else 'No response'}")
+            # Return original items if categorization fails
+            return items

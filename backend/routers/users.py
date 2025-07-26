@@ -32,12 +32,12 @@ def update_fcm_token(fcm_token_update: FCMTokenUpdate, current_user: User = Depe
     return {"message": "FCM token updated successfully"}
 
 @router.post("/users/me/agent/invoke")
-def invoke_agent_endpoint(prompt: AegntPrompt, current_user: User = Depends(get_current_user)):
+async def invoke_agent_endpoint(prompt: AegntPrompt, current_user: User = Depends(get_current_user)):
     """
     Invokes the Aegnt agent with a prompt from the user.
     """
     try:
-        response = aegnt_service.invoke_agent(current_user.uid, prompt.prompt)
+        response = await aegnt_service.invoke_agent(current_user.uid, prompt.prompt)
         return response
     except Exception as e:
         print(e)

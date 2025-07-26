@@ -137,7 +137,9 @@ class AegntRequest(BaseModel):
 
 @app.post("/invoke_agent")
 async def invoke_agent(request: AegntRequest):
+    session = None
     try:
+        # Create a new session
         session = await runner.session_service.create_session(app_name=runner.app_name, user_id=request.user_id)
         content = UserContent(parts=[Part(text=request.prompt)])
         response_parts = []
@@ -145,24 +147,57 @@ async def invoke_agent(request: AegntRequest):
             user_id=session.user_id, session_id=session.id, new_message=content
         ):
             if event.content and event.content.parts:
+                # Check if we have function calls
+                has_function_calls = any(
+                    part.function_call for part in event.content.parts
+                )
+                
                 for part in event.content.parts:
-                    part_data = {}
-                    if part.text:
-                        part_data["type"] = "text"
-                        part_data["content"] = part.text
-                    elif part.function_call:
-                        part_data["type"] = "function_call"
-                        part_data["content"] = part.function_call.model_dump()
-                    if part_data:
+                    if has_function_calls and part.function_call:
+                        # Handle function calls
+                        part_data = {
+                            "type": "function_call",
+                            "name": part.function_call.name,
+                            "args": part.function_call.args,
+                            "content": part.function_call.model_dump()
+                        }
+                        response_parts.append(part_data)
+                    elif part.text:
+                        # Handle text parts
+                        part_data = {
+                            "type": "text",
+                            "content": part.text
+                        }
+                        response_parts.append(part_data)
+                    else:
+                        # Handle any other part types
+                        part_data = {
+                            "type": "other",
+                            "content": part.model_dump(exclude_none=True)
+                        }
                         response_parts.append(part_data)
 
-        await runner.session_service.delete_session(user_id=session.user_id, session_id=session.id)
+        await runner.session_service.delete_session(
+            user_id=session.user_id,
+            session_id=session.id,
+            app_name=runner.app_name
+        )
         
         if not response_parts:
             return {"response": "No response from agent."}
             
         return {"parts": response_parts}
     except Exception as e:
+        print(f"Error in invoke_agent: {e}")
+        if session:
+            try:
+                await runner.session_service.delete_session(
+                    user_id=session.user_id,
+                    session_id=session.id,
+                    app_name=runner.app_name
+                )
+            except Exception as cleanup_error:
+                print(f"Error cleaning up session: {cleanup_error}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":

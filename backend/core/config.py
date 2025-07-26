@@ -12,11 +12,14 @@ class Settings(BaseSettings):
     # It's recommended to load these from environment variables or a secret manager.
     AEGNT_API_URL: str = os.getenv("AEGNT_API_URL", "<your_aegnt_api_url>")
     GOOGLE_APPLICATION_CREDENTIALS: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "<your_google_application_credentials_path>")
+    GOOGLE_CLOUD_PROJECT: str = os.getenv("GOOGLE_CLOUD_PROJECT", "<your_google_cloud_project>")
+    GOOGLE_CLOUD_LOCATION: str = os.getenv("GOOGLE_CLOUD_LOCATION", "<your_google_cloud_location>")
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "<your_gemini_api_key>")
     GOOGLE_MAPS_API_KEY: str = os.getenv("GOOGLE_MAPS_API_KEY", "<your_google_maps_api_key>")
     GOOGLE_WALLET_ISSUER_ID: str = os.getenv("GOOGLE_WALLET_ISSUER_ID", "your_google_wallet_issuer_id")
     GOOGLE_WALLET_SERVICE_ACCOUNT_KEY_FILE: str = os.getenv("GOOGLE_WALLET_SERVICE_ACCOUNT_KEY_FILE", "<your_google_wallet_service_account_key_file>")
     GOOGLE_CALENDAR_SERVICE_ACCOUNT_KEY_FILE: str = os.getenv("GOOGLE_CALENDAR_SERVICE_ACCOUNT_KEY_FILE", "<your_google_calendar_service_account_key_file>")
+    AGENT_ID: str = os.getenv("AGENT_ID", "<your_agent_id>")
 
     class Config:
         case_sensitive = True
