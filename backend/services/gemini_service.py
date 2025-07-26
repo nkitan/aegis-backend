@@ -35,14 +35,14 @@ class GeminiService:
                     "quantity": <number of items>,
                     "unit_price": <price per unit>,
                     "total_price": <total price for this item>,
-                    "category": "<category>"
+                    "category": "<Category of the item, e.g., Food, Beverage, Electronics, Tools, Clothing, etc.>"
                 }
             ],
             "subtotal": <amount before tax/tips>,
             "tax": <tax amount>,
             "tip": <tip amount if applicable>,
             "total_amount": <final total amount>,
-            "transaction_category": "<overall transaction category>",
+            "transaction_category": "<Merchant category: Restaurant, Grocery Store, Electronics Store, etc.>",
             "payment_method": "<payment method if shown>"
         }
 
@@ -52,8 +52,10 @@ class GeminiService:
         3. For quantities: 
            - If not explicitly stated, use 1
            - For weighted items (like produce), include the weight in the item name (e.g., "Apples 1.5 lbs")
-        4. For item category, use general categories like: 'Groceries', 'Restaurant', 'Electronics', 'Clothing', 'Home', etc.
-        5. For transaction_category, infer a single category that best describes the entire purchase
+        4. For item categories, use specific categories like: 'Food', 'Beverage', 'Snacks', 'Produce', 'Meat', 'Dairy', 'Bakery',
+           'Electronics', 'Clothing', 'Home', 'Beauty', 'Health', 'Office', 'Pet', or 'Other'
+        5. For transaction_category, use merchant types like: 'Restaurant', 'Supermarket', 'Electronics Store', 'Department Store',
+           'Convenience Store', 'Pharmacy', etc. based on the type of establishment
         6. Make sure unit_price × quantity equals total_price for each item
         7. Ensure all monetary values are numbers, not strings
         8. For store location:
@@ -115,18 +117,53 @@ class GeminiService:
         if not items:
             return []
 
-        prompt = f"""Categorize these items and return a JSON array with each item having a 'category' field.
-        Use only these categories: Groceries, Restaurant, Electronics, Clothing, Home, Entertainment, Transportation, Healthcare, or Other.
+        prompt = f"""Categorize these items based on the merchant type and item descriptions.
+        
+        Restaurant Categories:
+        - Main Course: Entrees, primary dishes
+        - Appetizer: Starters, sides
+        - Dessert: Sweet dishes, ice cream
+        - Alcoholic Beverage: Beer, wine, cocktails
+        - Non-Alcoholic Beverage: Soft drinks, coffee, tea
+        
+        Electronics Store Categories:
+        - Computing: Computers, laptops, tablets
+        - Mobile: Phones, accessories
+        - Audio: Headphones, speakers
+        - Gaming: Consoles, games
+        - TV & Video: TVs, streaming devices
+        - Accessories: Cables, chargers
+        
+        Supermarket Categories:
+        - Fresh Produce: Fruits, vegetables
+        - Meat & Seafood: Fresh meats
+        - Dairy: Milk, cheese, eggs
+        - Bakery: Bread, pastries
+        - Pantry: Dry goods, canned items
+        - Beverages: Drinks, alcohol
+        - Household: Cleaning, supplies
+        
+        Clothing Store Categories:
+        - Men's Wear: Men's clothing
+        - Women's Wear: Women's clothing
+        - Children's: Kids' clothing
+        - Accessories: Bags, jewelry
+        - Footwear: Shoes, sandals
+
+        Note: Choose the most specific category that applies to each item.
         
         Original items: {json.dumps(items)}
         
         Example response format:
         [
-            {{"name": "item name", "quantity": 1, "price": 10.99, "category": "Groceries"}},
-            {{"name": "another item", "quantity": 2, "price": 25.99, "category": "Electronics"}}
+            {{"name": "Grilled Salmon", "quantity": 1, "price": 24.99, "category": "Food"}},
+            {{"name": "Wine Bottle", "quantity": 1, "price": 35.00, "category": "Beverage"}},
+            {{"name": "Fresh Oranges", "quantity": 2, "price": 4.99, "category": "Produce"}},
+            {{"name": "Phone Charger", "quantity": 1, "price": 19.99, "category": "Electronics"}}
         ]
         
         Ensure the response is valid JSON and preserve all original fields while adding or updating the category.
+        For restaurant items, make sure to properly categorize between Food and Beverage.
         """
 
         try:
