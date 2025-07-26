@@ -55,7 +55,7 @@ class GeminiService:
         4. For item categories, use specific categories like: 'Food', 'Beverage', 'Snacks', 'Produce', 'Meat', 'Dairy', 'Bakery',
            'Electronics', 'Clothing', 'Home', 'Beauty', 'Health', 'Office', 'Pet', or 'Other'
         5. For transaction_category, use merchant types like: 'Restaurant', 'Supermarket', 'Electronics Store', 'Department Store',
-           'Convenience Store', 'Pharmacy', etc. based on the type of establishment
+           'Food & Dining', 'Retail & Shopping', 'Services', 'Transportation & Automotive', 'Health & Wellness', 'Entertainment & Leisure', 'Education & Childcare'
         6. Make sure unit_price × quantity equals total_price for each item
         7. Ensure all monetary values are numbers, not strings
         8. For store location:

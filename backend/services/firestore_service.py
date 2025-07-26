@@ -35,7 +35,12 @@ class FirestoreService:
             query = query.where('store_name', '==', store_name)
 
         results = query.stream()
-        transactions = [Transaction(id=doc.id, **doc.to_dict()) for doc in results]
+        transactions = []
+        for doc in results:
+            data = doc.to_dict()
+            if 'id' in data:
+                del data['id']  # Remove 'id' if it exists in the document data
+            transactions.append(Transaction(id=doc.id, **data))
 
         if item_name:
             transactions = [t for t in transactions if any(item.name == item_name for item in t.items)]

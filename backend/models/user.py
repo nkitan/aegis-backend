@@ -6,3 +6,4 @@ class User(BaseModel):
     email: EmailStr
     display_name: str | None = None
     fcm_token: str | None = None
+    id_token: str | None = None

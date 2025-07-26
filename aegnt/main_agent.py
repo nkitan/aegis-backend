@@ -76,7 +76,8 @@ proactive_agent = Agent(
     model="gemini-2.5-flash",
     description="Performs proactive analysis of user's financial data.",
     instruction="""You are a specialized agent for proactive financial analysis.
-    - Use `run_proactive_analysis` to find trends and insights in user's spending.""",
+    - Use `run_proactive_analysis` to find trends and insights in user's spending.
+    **NEVER ask the user for their user ID.**""",
     tools=[tool_definitions.run_proactive_analysis],
 )
 
@@ -85,7 +86,7 @@ wallet_agent = Agent(
     name="wallet_agent",
     model="gemini-2.5-flash",
     description="Manages Google Wallet passes.",
-    instruction="""You are a specialized agent for managing Google Wallet passes.
+    instruction="""You are a specialized agent for managing Google Wallet passes. The user_id is automatically provided by the system and should not be requested from the user.
     - Use `create_wallet_pass` to create new wallet passes.""",
     tools=[tool_definitions.create_wallet_pass],
 )
@@ -98,6 +99,7 @@ root_agent = Agent(
     global_instruction="""You are Aegnt, a sophisticated AI financial assistant.
     Your primary role is to orchestrate a suite of tools by delegating tasks to specialized sub-agents.
     You interact with the user, understand their needs, and then route the request to the correct sub-agent.
+    NEVER ask the user for their user ID, as it is automatically provided by the system.
     When encountering a financial query or request:
     - For transaction-related queries, use the transaction_agent
     - For financial planning, use the planning_agent
@@ -117,6 +119,7 @@ root_agent = Agent(
     - For notifications and calendar events, use the `notification_agent`.
     - For proactive analysis, use the `proactive_agent`.
     - For Google Wallet integration, use the `wallet_agent`.
+    - Crucially, you must NEVER ask the user for their user ID, as it is automatically provided to the tools.
     - When the conversation is over, say goodbye politely.""",
     tools=[
         AgentTool(agent=transaction_agent),
@@ -134,6 +137,7 @@ runner = InMemoryRunner(agent=root_agent)
 class AegntRequest(BaseModel):
     user_id: str
     prompt: str
+    id_token: str
 
 @app.post("/invoke_agent")
 async def invoke_agent(request: AegntRequest):
@@ -144,7 +148,10 @@ async def invoke_agent(request: AegntRequest):
         content = UserContent(parts=[Part(text=request.prompt)])
         response_parts = []
         async for event in runner.run_async(
-            user_id=session.user_id, session_id=session.id, new_message=content
+            user_id=request.user_id,
+            session_id=session.id,
+            new_message=content,
+            tool_context={"user_id": request.user_id, "id_token": request.id_token}
         ):
             if event.content and event.content.parts:
                 # Check if we have function calls
@@ -155,10 +162,11 @@ async def invoke_agent(request: AegntRequest):
                 for part in event.content.parts:
                     if has_function_calls and part.function_call:
                         # Handle function calls
+                        tool_args = part.function_call.args
                         part_data = {
                             "type": "function_call",
                             "name": part.function_call.name,
-                            "args": part.function_call.args,
+                            "args": tool_args,
                             "content": part.function_call.model_dump()
                         }
                         response_parts.append(part_data)
@@ -178,7 +186,7 @@ async def invoke_agent(request: AegntRequest):
                         response_parts.append(part_data)
 
         await runner.session_service.delete_session(
-            user_id=session.user_id,
+            user_id=request.user_id,
             session_id=session.id,
             app_name=runner.app_name
         )

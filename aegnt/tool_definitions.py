@@ -17,7 +17,7 @@ from typing import Optional
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
-def process_receipt(file_data_base64: str, file_type: str, user_id: str) -> dict:
+def process_receipt(file_data_base64: str, file_type: str, user_id: str, id_token: str) -> dict:
     """
     Initiates the processing of a new receipt. This tool takes the base64-encoded file data
     and the user's ID and sends it to the backend for the entire ingestion
@@ -28,9 +28,7 @@ def process_receipt(file_data_base64: str, file_type: str, user_id: str) -> dict
     with httpx.Client() as client:
         files = {'file': (f'receipt.{file_type.split("/")[-1]}', file_data, file_type)}
         data = {'user_id': user_id}
-        headers = {}
-        if BACKEND_API_TOKEN:
-            headers['Authorization'] = f'Bearer {BACKEND_API_TOKEN}'
+        headers = {'Authorization': f'Bearer {id_token}'}
         
         try:
             response = client.post(
@@ -54,9 +52,7 @@ def create_wallet_pass(pass_type: str, pass_data: dict) -> dict:
     based on a user's request.
     """
     with httpx.Client() as client:
-        headers = {}
-        if BACKEND_API_TOKEN:
-            headers['Authorization'] = f'Bearer {BACKEND_API_TOKEN}'
+        headers = {'Authorization': f'Bearer {id_token}'}
 
         try:
             response = client.post(
@@ -78,9 +74,7 @@ def create_calendar_event(event_data: dict) -> dict:
     deadline by calling the backend service.
     """
     with httpx.Client() as client:
-        headers = {}
-        if BACKEND_API_TOKEN:
-            headers['Authorization'] = f'Bearer {BACKEND_API_TOKEN}'
+        headers = {'Authorization': f'Bearer {id_token}'}
 
         try:
             response = client.post(
@@ -99,6 +93,7 @@ def create_calendar_event(event_data: dict) -> dict:
 def query_transactions(
     user_id: str,
     time_period: str,
+    id_token: str,
     category: Optional[str] = None,
     store_name: Optional[str] = None,
     item_name: Optional[str] = None,
@@ -118,9 +113,6 @@ def query_transactions(
     end_date = datetime.now()
     if "last month" in time_period:
         start_date = (end_date - timedelta(days=30)).strftime('%Y-%m-%d')
-    elif "august 2024" in time_period.lower():
-        start_date = "2024-08-01"
-        end_date = "2024-08-31"
     else: # Default to last 7 days
         start_date = (end_date - timedelta(days=7)).strftime('%Y-%m-%d')
     
@@ -128,7 +120,6 @@ def query_transactions(
 
     with httpx.Client() as client:
         params = {
-            "user_id": user_id,
             "start_date": start_date,
             "end_date": end_date,
         }
@@ -149,9 +140,7 @@ def query_transactions(
         if postal_code:
             params["postal_code"] = postal_code
         
-        headers = {}
-        if BACKEND_API_TOKEN:
-            headers['Authorization'] = f'Bearer {BACKEND_API_TOKEN}'
+        headers = {'Authorization': f'Bearer {id_token}'}
 
         try:
             response = client.get(
@@ -167,7 +156,7 @@ def query_transactions(
             return [{"error": f"An error occurred while requesting the backend: {e}"}]
 
 
-def get_spending_summary(query_text: str, user_id: str) -> dict:
+def get_spending_summary(query_text: str, user_id: str, id_token: str) -> dict:
     """
     Answers high-level financial questions like, 'Compare my grocery spending
     in May vs. June.' It synthesizes data from multiple queries to provide a
@@ -176,7 +165,7 @@ def get_spending_summary(query_text: str, user_id: str) -> dict:
     if not GEMINI_API_KEY:
         return {"error": "GEMINI_API_KEY is not configured."}
 
-    model = genai.GenerativeModel('gemini-pro')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     prompt = f"You are a financial analyst. The user wants to know: '{query_text}'.                Based on this query, determine the necessary parameters to call the                query_transactions tool. You should call the tool for each time period                or category mentioned in the user's query. Then, synthesize the                results into a natural language answer and provide a structured                data object for charting. For example, if the user asks to compare                spending in May and June, you should call query_transactions for each                month and then compare the results. Respond with a JSON object containing                'natural_language_answer' and 'structured_data'."
 
     try:
@@ -188,24 +177,63 @@ def get_spending_summary(query_text: str, user_id: str) -> dict:
         # Simulate LLM analysis of the query to extract parameters
         # This is where the agent would decide which queries to make.
         # For "Compare my grocery spending in May vs. June":
-        may_transactions = query_transactions(user_id, "may 2024", category="Groceries")
-        june_transactions = query_transactions(user_id, "june 2024", category="Groceries")
+        # This section will be replaced by dynamic parsing and calls to query_transactions
+        # based on the query_text.
 
-        may_total = sum(t.get('amount', 0) for t in may_transactions if 'error' not in t)
-        june_total = sum(t.get('amount', 0) for t in june_transactions if 'error' not in t)
+        # Example of dynamic parsing (simplified for demonstration):
+        # In a real scenario, you'd use a more robust NLP approach or rely on the agent's reasoning.
+        if "last month" in query_text.lower():
+            start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+            end_date = datetime.now().strftime('%Y-%m-%d')
+            transactions = query_transactions(user_id, "last month", id_token)
+            total_spending = sum(t.get('total_amount', 0) for t in transactions if 'error' not in t)
+            natural_language_answer = f"Your total spending last month was ${total_spending:.2f}."
+            structured_data = {
+                "chart_type": "bar",
+                "labels": ["Last Month"],
+                "datasets": [
+                    {
+                        "label": "Total Spending",
+                        "data": [total_spending]
+                    }
+                ]
+            }
+        elif "last week" in query_text.lower():
+            start_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+            end_date = datetime.now().strftime('%Y-%m-%d')
+            transactions = query_transactions(user_id, "last week", id_token)
+            total_spending = sum(t.get('total_amount', 0) for t in transactions if 'error' not in t)
+            natural_language_answer = f"Your total spending last week was ${total_spending:.2f}."
+            structured_data = {
+                "chart_type": "bar",
+                "labels": ["Last Week"],
+                "datasets": [
+                    {
+                        "label": "Total Spending",
+                        "data": [total_spending]
+                    }
+                ]
+            }
+        elif "restaurant food last month" in query_text.lower():
+            start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+            end_date = datetime.now().strftime('%Y-%m-%d')
+            transactions = query_transactions(user_id, "last month", id_token, category="Restaurant")
+            total_spending = sum(t.get('total_amount', 0) for t in transactions if 'error' not in t)
+            natural_language_answer = f"Your spending on restaurant food last month was ${total_spending:.2f}."
+            structured_data = {
+                "chart_type": "bar",
+                "labels": ["Restaurant Food Last Month"],
+                "datasets": [
+                    {
+                        "label": "Restaurant Spending",
+                        "data": [total_spending]
+                    }
+                ]
+            }
+        else:
+            natural_language_answer = "I can provide spending summaries for specific time periods and categories. Please specify your query more clearly."
+            structured_data = {}
 
-        # Synthesize the answer
-        natural_language_answer = f"Your grocery spending in June was ${june_total}, compared to ${may_total} in May."
-        structured_data = {
-            "chart_type": "bar",
-            "labels": ["May", "June"],
-            "datasets": [
-                {
-                    "label": "Grocery Spending",
-                    "data": [may_total, june_total]
-                }
-            ]
-        }
         return {
             "natural_language_answer": natural_language_answer,
             "structured_data": structured_data
@@ -280,7 +308,7 @@ def run_proactive_analysis(user_id: str) -> dict:
     if not GEMINI_API_KEY:
         return {"insight_found": False, "insight_message": "GEMINI_API_KEY is not configured."}
 
-    model = genai.GenerativeModel('gemini-pro')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     prompt = f"You are a financial analyst. Analyze the following JSON data of recent transactions: \
                {json.dumps(recent_transactions)}. Look for spending trends, potential duplicate charges, \
                subscription price hikes (e.g., a recurring payment that has increased), or upcoming \
@@ -303,12 +331,12 @@ def run_proactive_analysis(user_id: str) -> dict:
         return {"insight_found": False, "insight_message": f"An error occurred during analysis: {e}"}
 
 
-def generate_savings_plan(user_id: str, goal_amount: float, time_frame: str) -> dict:
+def generate_savings_plan(user_id: str, goal_amount: float, time_frame: str, id_token: str) -> dict:
     """
     Helps users with forward-looking problems by creating a personalized savings
     plan based on their spending history.
     """
-    spending_history = query_transactions(user_id, "last 90 days")
+    spending_history = query_transactions(user_id, "last 90 days", id_token)
 
     if not spending_history or "error" in spending_history[0]:
         return {"error": "Could not retrieve spending history."}
@@ -316,7 +344,7 @@ def generate_savings_plan(user_id: str, goal_amount: float, time_frame: str) -> 
     if not GEMINI_API_KEY:
         return {"error": "GEMINI_API_KEY is not configured."}
 
-    model = genai.GenerativeModel('gemini-pro')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     prompt = f"You are a financial advisor. A user wants to save ${goal_amount} in {time_frame}. \
                Their spending history for the last 90 days is as follows (in JSON format): \
                {json.dumps(spending_history)}. \
@@ -332,14 +360,12 @@ def generate_savings_plan(user_id: str, goal_amount: float, time_frame: str) -> 
         return {"error": f"An error occurred while generating the savings plan: {e}"}
 
 
-def manage_savings_challenge(user_id: str, challenge_type: str, action: str) -> dict:
+def manage_savings_challenge(user_id: str, challenge_type: str, action: str, id_token: str) -> dict:
     """
     Manages opt-in gamified savings challenges by interacting with the backend.
     """
     with httpx.Client() as client:
-        headers = {}
-        if BACKEND_API_TOKEN:
-            headers['Authorization'] = f'Bearer {BACKEND_API_TOKEN}'
+        headers = {'Authorization': f'Bearer {id_token}'}
 
         try:
             if action == "start":
@@ -362,15 +388,13 @@ def manage_savings_challenge(user_id: str, challenge_type: str, action: str) -> 
             return {"error": f"An error occurred while requesting the backend: {e}"}
 
 
-def send_push_notification(user_id: str, message: str) -> dict:
+def send_push_notification(user_id: str, message: str, id_token: str) -> dict:
     """
     Sends a timely alert or insight to the user's device by calling the
     backend's notification service.
     """
     with httpx.Client() as client:
-        headers = {}
-        if BACKEND_API_TOKEN:
-            headers['Authorization'] = f'Bearer {BACKEND_API_TOKEN}'
+        headers = {'Authorization': f'Bearer {id_token}'}
 
         try:
             response = client.post(

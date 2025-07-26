@@ -42,11 +42,12 @@ async def invoke_agent_endpoint(prompt: AegntPrompt, current_user: User = Depend
     """
     try:
         logger.info(f"Invoking agent for user {current_user.uid} with prompt: {prompt.prompt}")
-        response = await aegnt_service.invoke_agent(current_user.uid, prompt.prompt)
+        response = await aegnt_service.invoke_agent(current_user.uid, prompt.prompt, current_user.id_token)
         logger.info("Successfully received response from agent")
         return response
     except httpx.HTTPError as e:
         logger.error(f"HTTP error communicating with Aegnt service: {str(e)}")
+        print(e)
         raise HTTPException(
             status_code=503,
             detail="Error communicating with Aegnt service. Please ensure the service is running."

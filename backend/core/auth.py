@@ -19,7 +19,8 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
         return User(
             uid=decoded_token['uid'],
             email=decoded_token['email'],
-            display_name=decoded_token.get('name')
+            display_name=decoded_token.get('name'),
+            id_token=token
         )
     except auth.InvalidIdTokenError:
         raise HTTPException(

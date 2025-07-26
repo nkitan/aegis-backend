@@ -135,10 +135,10 @@ async function main() {
   console.log('\n3. Fetching transactions...');
   try {
     const currentDate = new Date();
-    const oneWeekAgo = new Date(currentDate);
-    oneWeekAgo.setDate(currentDate.getDate() - 7);
+    const tenYearsAgo = new Date(currentDate);
+    tenYearsAgo.setDate(currentDate.getDate() - 3650);
     
-    const startDate = oneWeekAgo.toISOString().split('T')[0];
+    const startDate = tenYearsAgo.toISOString().split('T')[0];
     const endDate = currentDate.toISOString().split('T')[0];
     
     console.log(`   Fetching transactions from ${startDate} to ${endDate}...`);
@@ -192,6 +192,11 @@ async function main() {
   try {
     const response = await axios.post(`${BASE_URL}/users/me/agent/invoke`, { prompt }, { headers });
     console.log('   Agent Response:', response.data);
+    if (response.data) {
+      console.log('   Agent invocation successful and response received.');
+    } else {
+      console.error('   Agent invocation failed to return a response.');
+    }
   } catch (error) {
     console.error(`   Error invoking agent: ${error.message}`);
     if (error.response) {

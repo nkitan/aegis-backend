@@ -23,7 +23,7 @@ class AegntService:
             logger.error(f"Error initializing AegntService: {str(e)}")
             raise
 
-    async def invoke_agent(self, user_id: str, prompt: str):
+    async def invoke_agent(self, user_id: str, prompt: str, id_token: str):
         """
         Invokes the aegnt with a given prompt.
         
@@ -40,7 +40,8 @@ class AegntService:
             # Send the message to aegnt
             response = await self.client.post("/invoke_agent", json={
                 "user_id": user_id,
-                "prompt": prompt
+                "prompt": prompt,
+                "id_token": id_token,
             }, timeout=10.0)  # Add timeout
             
             # Log the response status
