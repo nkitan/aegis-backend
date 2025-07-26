@@ -10,18 +10,21 @@ import httpx
 import json
 from datetime import datetime, timedelta
 import google.generativeai as genai
-from config import BACKEND_API_BASE_URL, GEMINI_API_KEY, BACKEND_API_TOKEN
+from .config import BACKEND_API_BASE_URL, GEMINI_API_KEY, BACKEND_API_TOKEN
+from typing import Optional
 
 # Configure the Gemini API key
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
-def process_receipt(file_data: bytes, file_type: str, user_id: str) -> dict:
+def process_receipt(file_data_base64: str, file_type: str, user_id: str) -> dict:
     """
-    Initiates the processing of a new receipt. This tool takes the raw file data
+    Initiates the processing of a new receipt. This tool takes the base64-encoded file data
     and the user's ID and sends it to the backend for the entire ingestion
     workflow, including OCR, categorization, data storage, and Wallet Pass creation.
     """
+    import base64
+    file_data = base64.b64decode(file_data_base64)
     with httpx.Client() as client:
         files = {'file': (f'receipt.{file_type.split("/")[-1]}', file_data, file_type)}
         data = {'user_id': user_id}
@@ -96,9 +99,9 @@ def create_calendar_event(event_data: dict) -> dict:
 def query_transactions(
     user_id: str,
     time_period: str,
-    category: str = None,
-    store_name: str = None,
-    item_name: str = None,
+    category: Optional[str] = None,
+    store_name: Optional[str] = None,
+    item_name: Optional[str] = None,
 ) -> list:
     """
     A flexible tool to retrieve specific transaction data by querying the backend.
@@ -197,27 +200,55 @@ def get_spending_summary(query_text: str, user_id: str) -> dict:
         return {"error": f"An error occurred while generating the spending summary: {e}"}
 
 
-def generate_recipe_suggestion(pantry_items: list, user_preferences: str = None) -> list:
+from .config import SPOONACULAR_API_KEY
+
+def generate_recipe_suggestion(pantry_items: list, user_preferences: Optional[str] = None) -> list:
     """
     Provides recipe ideas based on the items currently available in the user's
     'Virtual Pantry'. This is a creative task.
     """
-    if not GEMINI_API_KEY:
-        return [{"error": "GEMINI_API_KEY is not configured."}]
+    if not SPOONACULAR_API_KEY:
+        return [{"error": "SPOONACULAR_API_KEY is not configured."}]
 
-    model = genai.GenerativeModel('gemini-pro')
-    prompt = f"Based on the following pantry items: {', '.join(pantry_items)}"
-    if user_preferences:
-        prompt += f" and considering these preferences: {user_preferences}"
-    prompt += ", suggest some creative recipes."
+    ingredients_str = ','.join(pantry_items)
+    
+    # Prioritize using as many given ingredients as possible (ranking=1)
+    # and ignore common pantry items like water, salt, etc.
+    params = {
+        "ingredients": ingredients_str,
+        "number": 5,  # Return up to 5 recipes
+        "ranking": 1,
+        "ignorePantry": True,
+        "apiKey": SPOONACULAR_API_KEY
+    }
 
     try:
-        response = model.generate_content(prompt)
-        # Basic parsing of the response. A more robust solution would be needed.
-        recipes = response.text.split('\n')
-        return [recipe.strip() for recipe in recipes if recipe.strip()]
+        response = httpx.get("https://api.spoonacular.com/recipes/findByIngredients", params=params)
+        response.raise_for_status()  # Raise an exception for HTTP errors
+        recipes_data = response.json()
+
+        suggestions = []
+        if recipes_data:
+            for recipe in recipes_data:
+                title = recipe.get("title")
+                used_ingredients = ", ".join([ing["name"] for ing in recipe.get("usedIngredients", [])])
+                missing_ingredients = ", ".join([ing["name"] for ing in recipe.get("missedIngredients", [])])
+                
+                suggestion = f"Recipe: {title}\n"
+                suggestion += f"  Used Ingredients: {used_ingredients}\n"
+                if missing_ingredients:
+                    suggestion += f"  Missing Ingredients: {missing_ingredients}\n"
+                suggestions.append(suggestion)
+        else:
+            suggestions.append("No recipes found with the given ingredients.")
+            
+        return suggestions
+    except httpx.HTTPStatusError as e:
+        return [{"error": f"HTTP error occurred: {e.response.status_code} - {e.response.text}"}]
+    except httpx.RequestError as e:
+        return [{"error": f"An error occurred while requesting the Spoonacular API: {e}"}]
     except Exception as e:
-        return [{"error": f"An error occurred while generating recipe suggestions: {e}"}]
+        return [{"error": f"An unexpected error occurred: {e}"}]
 
 
 def run_proactive_analysis(user_id: str) -> dict:

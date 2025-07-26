@@ -20,3 +20,6 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Placeholder for a backend API token, if required for authentication.
 BACKEND_API_TOKEN = os.getenv("BACKEND_API_TOKEN")
+
+# The API key for the Spoonacular API, used for recipe suggestions.
+SPOONACULAR_API_KEY = os.getenv("SPOONACULAR_API_KEY")

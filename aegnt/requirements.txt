@@ -2,3 +2,5 @@ google-adk
 google-generativeai
 httpx
 python-dotenv
+fastapi
+uvicorn

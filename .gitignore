@@ -1,7 +1,4 @@
-.env
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-*prompt.md
-*.bak
+
+# Firebase
+/test-client/.env
+google-wallet-codelab/

@@ -9,9 +9,9 @@ genai.configure(api_key=settings.GEMINI_API_KEY)
 
 class GeminiService:
     def __init__(self):
-        self.model = genai.GenerativeModel('gemini-pro-vision')
+        self.model = genai.GenerativeModel('gemini-2.5-flash')
 
-    def extract_from_receipt(self, receipt_image: bytes) -> dict:
+    def extract_from_receipt
         """
         Uses Gemini Pro Vision to extract structured data from a receipt image.
         """

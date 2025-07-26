@@ -6,8 +6,15 @@ the agent's conversational loop. It serves as the primary execution file for
 the agent.
 """
 
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import uvicorn
 from google.adk.agents import Agent
-import tool_definitions
+from google.adk.tools.agent_tool import AgentTool
+from . import tool_definitions
+from google.adk.runners import InMemoryRunner
+from google.genai.types import Part, UserContent
+import asyncio
 
 # Sub-agent for handling transactions
 transaction_agent = Agent(
@@ -87,10 +94,20 @@ wallet_agent = Agent(
 # The main agent
 root_agent = Agent(
     name="Aegnt",
+    model="gemini-2.5-flash",
     global_instruction="""You are Aegnt, a sophisticated AI financial assistant.
     Your primary role is to orchestrate a suite of tools by delegating tasks to specialized sub-agents.
     You interact with the user, understand their needs, and then route the request to the correct sub-agent.
-    After a sub-agent completes a task, you present the result to the user and ask if there is anything else you can help with.""",
+    When encountering a financial query or request:
+    - For transaction-related queries, use the transaction_agent
+    - For financial planning, use the planning_agent
+    - For recipe suggestions, use the creative_agent
+    - For notifications and scheduling, use the notification_agent
+    - For proactive insights, use the proactive_agent
+    - For wallet pass creation, use the wallet_agent
+    
+    Make sure to properly format your responses and handle both text and function calls appropriately.
+    After a sub-agent completes a task, present the result to the user and ask if there is anything else you can help with.""",
     instruction="""You are the main financial assistant.
     - Greet the user and ask how you can help.
     - Based on the user's request, delegate the task to the appropriate sub-agent.
@@ -101,46 +118,52 @@ root_agent = Agent(
     - For proactive analysis, use the `proactive_agent`.
     - For Google Wallet integration, use the `wallet_agent`.
     - When the conversation is over, say goodbye politely.""",
-    sub_agents=[
-        transaction_agent,
-        planning_agent,
-        creative_agent,
-        notification_agent,
-        proactive_agent,
-        wallet_agent,
+    tools=[
+        AgentTool(agent=transaction_agent),
+        AgentTool(agent=planning_agent),
+        AgentTool(agent=creative_agent),
+        AgentTool(agent=notification_agent),
+        AgentTool(agent=proactive_agent),
+        AgentTool(agent=wallet_agent),
     ],
-    model="gemini-2.5-flash",
 )
 
-from google.adk.runners import InMemoryRunner
-from google.genai.types import Part, UserContent
+app = FastAPI()
+runner = InMemoryRunner(agent=root_agent)
 
-import asyncio
+class AegntRequest(BaseModel):
+    user_id: str
+    prompt: str
 
-async def main():
-    print("Aegnt is running. You can now interact with it.")
-    print("Type 'exit' to end the conversation.")
-
-    runner = InMemoryRunner(agent=root_agent)
-    session = await runner.session_service.create_session(app_name=runner.app_name, user_id="user")
-    print(f"Created session for user ID: user")
-
-    while True:
-        user_input = input("User: ")
-        if user_input.lower() == 'exit':
-            break
-
-        content = UserContent(parts=[Part(text=user_input)])
-        response_text = ""
+@app.post("/invoke_agent")
+async def invoke_agent(request: AegntRequest):
+    try:
+        session = await runner.session_service.create_session(app_name=runner.app_name, user_id=request.user_id)
+        content = UserContent(parts=[Part(text=request.prompt)])
+        response_parts = []
         async for event in runner.run_async(
             user_id=session.user_id, session_id=session.id, new_message=content
         ):
-            if event.content and event.content.parts and event.content.parts[0].text:
-                response_text += event.content.parts[0].text
-        print(f"Agent: {response_text}")
+            if event.content and event.content.parts:
+                for part in event.content.parts:
+                    part_data = {}
+                    if part.text:
+                        part_data["type"] = "text"
+                        part_data["content"] = part.text
+                    elif part.function_call:
+                        part_data["type"] = "function_call"
+                        part_data["content"] = part.function_call.model_dump()
+                    if part_data:
+                        response_parts.append(part_data)
 
-    await runner.session_service.delete_session(user_id=session.user_id, session_id=session.id)
-    print(f"Deleted session for user ID: user")
+        await runner.session_service.delete_session(user_id=session.user_id, session_id=session.id)
+        
+        if not response_parts:
+            return {"response": "No response from agent."}
+            
+        return {"parts": response_parts}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    uvicorn.run(app, host="0.0.0.0", port=8001)

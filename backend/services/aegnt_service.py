@@ -4,14 +4,17 @@ from core.config import settings
 
 class AegntService:
     def __init__(self):
-        # You'll need to add AEGN_API_URL to your settings
         self.base_url = settings.AEGNT_API_URL
 
-    def trigger_proactive_analysis(self, user_id: str):
+    def invoke_agent(self, user_id: str, prompt: str):
         """
-        Triggers the proactive analysis tool in the Aegnt agent.
+        Invokes the Aegnt agent with a given prompt.
         """
         with httpx.Client() as client:
-            response = client.post(f"{self.base_url}/run_proactive_analysis", json={"user_id": user_id})
+            response = client.post(
+                f"{self.base_url}/invoke_agent",
+                json={"user_id": user_id, "prompt": prompt},
+                timeout=120,  # Set a longer timeout (in seconds)
+            )
             response.raise_for_status()
             return response.json()
