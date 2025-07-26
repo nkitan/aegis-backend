@@ -6,7 +6,9 @@ the agent's conversational loop. It serves as the primary execution file for
 the agent.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import uvicorn
 from google.adk.agents import Agent
@@ -22,9 +24,9 @@ transaction_agent = Agent(
     model="gemini-2.5-flash",
     description="Handles processing and querying of financial transactions.",
     instruction="""You are a specialized agent for handling financial transactions.
+    - For all data retrieval, you MUST use `query_transactions` to fetch transaction data based on user's query, including date ranges, categories, and store names. DO NOT use any external search tools.
     - Use `process_receipt` to process new receipts.
-    - Use `query_transactions` to fetch transaction data based on user's query, including date ranges, categories, and store names.
-    - After fetching transactions, use `summarize_transactions` to provide summaries of spending and insights from the retrieved data.
+    - After fetching transactions with `query_transactions`, use `summarize_transactions` to provide summaries of spending and insights from the retrieved data.
     - Crucially, you must NEVER ask the user for their user ID or ID token, as these are automatically provided to the tools.""",
     tools=[
         tool_definitions.process_receipt,
@@ -133,6 +135,27 @@ root_agent = Agent(
 )
 
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Replace with your frontend URL in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Add request validation middleware
+@app.middleware("http")
+async def validate_request(request: Request, call_next):
+    if request.method == "POST" and not request.headers.get("content-type") == "application/json":
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Content-Type must be application/json"}
+        )
+    response = await call_next(request)
+    return response
+
 runner = InMemoryRunner(agent=root_agent)
 
 class AegntRequest(BaseModel):
@@ -142,6 +165,13 @@ class AegntRequest(BaseModel):
 
 @app.post("/invoke_agent")
 async def invoke_agent(request: AegntRequest):
+    print(f"Received request from user: {request.user_id}")
+    if not request.prompt or not request.prompt.strip():
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Empty prompt received"}
+        )
+    
     session = None
     try:
         # Create a new session
@@ -209,4 +239,34 @@ async def invoke_agent(request: AegntRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(
+        app, 
+        host="0.0.0.0", 
+        port=8001,
+        log_level="info",
+        access_log=True,
+        timeout_keep_alive=65,
+        log_config={
+            "version": 1,
+            "disable_existing_loggers": False,
+            "formatters": {
+                "default": {
+                    "()": "uvicorn.logging.DefaultFormatter",
+                    "fmt": "%(levelprefix)s %(asctime)s %(message)s",
+                    "datefmt": "%Y-%m-%d %H:%M:%S",
+                }
+            },
+            "handlers": {
+                "default": {
+                    "formatter": "default",
+                    "class": "logging.StreamHandler",
+                    "stream": "ext://sys.stderr",
+                }
+            },
+            "loggers": {
+                "uvicorn": {"handlers": ["default"], "level": "INFO"},
+                "uvicorn.error": {"level": "INFO"},
+                "uvicorn.access": {"handlers": ["default"], "level": "INFO", "propagate": False},
+            },
+        }
+    )

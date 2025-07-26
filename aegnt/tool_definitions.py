@@ -11,7 +11,7 @@ import json
 from datetime import datetime, timedelta
 import google.generativeai as genai
 from config import BACKEND_API_BASE_URL, GEMINI_API_KEY, BACKEND_API_TOKEN
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 # Configure the Gemini API key
 if GEMINI_API_KEY:
@@ -45,7 +45,7 @@ def process_receipt(file_data_base64: str, file_type: str, user_id: str, id_toke
             return {"error": f"An error occurred while requesting the backend: {e}"}
 
 
-def create_wallet_pass(pass_type: str, pass_data: dict) -> dict:
+def create_wallet_pass(pass_type: str, pass_data: dict, id_token: str) -> dict:
     """
     Generates a Google Wallet pass by sending structured data to the backend.
     Use this for creating shopping lists or dynamic budget/warranty trackers
@@ -68,7 +68,7 @@ def create_wallet_pass(pass_type: str, pass_data: dict) -> dict:
             return {"error": f"An error occurred while requesting the backend: {e}"}
 
 
-def create_calendar_event(event_data: dict) -> dict:
+def create_calendar_event(event_data: dict, id_token: str) -> dict:
     """
     Creates a Google Calendar event for a warranty expiration or a return
     deadline by calling the backend service.
@@ -157,29 +157,20 @@ def query_transactions(
 
 def summarize_transactions(transactions: list, query_text: str) -> dict:
     """
-    Answers high-level financial questions like, 'Compare my grocery spending
-    in May vs. June.' It synthesizes data from multiple queries to provide a
-    comprehensive answer.
-
-    The `transactions` parameter should be a list of transaction objects, where each object
-    represents a financial transaction and typically includes fields such as:
-    - `transaction_id` (str): Unique identifier for the transaction.
-    - `user_id` (str): The ID of the user who made the transaction.
-    - `amount` (float): The monetary value of the transaction.
-    - `currency` (str): The currency of the transaction (e.g., "USD", "EUR").
-    - `transaction_date` (str): The date of the transaction in 'YYYY-MM-DD' format.
-    - `category` (str): The category of the transaction (e.g., "Groceries", "Restaurant", "Utilities").
-    - `store_name` (str): The name of the store where the transaction occurred.
-    - `description` (str): A brief description of the transaction.
-    - `payment_method` (str): The method of payment (e.g., "Credit Card", "Cash").
-    - `status` (str): The status of the transaction (e.g., "Completed", "Pending").
+    Analyzes financial transaction data to answer user questions.
+    
+    Args:
+        transactions: List of transaction dictionaries from query_transactions
+        query_text: User's financial question or analysis request
+        
+    Returns:
+        Dictionary with natural_language_answer and structured_data
     """
     if not GEMINI_API_KEY:
         return {"error": "GEMINI_API_KEY is not configured."}
 
     model = genai.GenerativeModel('gemini-2.5-flash')
-    transactions = json.loads(transactions_json)
-    prompt = f"You are a financial analyst. The user wants to know: '{query_text}'.                Analyze the following transaction data (in JSON format): {transactions_json}.                Provide a natural language answer summarizing the relevant information                and a structured data object for charting. For example, if the user asks to compare                spending in May and June, you should compare the provided transactions for each                month and then compare the results. Respond with a JSON object containing                'natural_language_answer' and 'structured_data'."
+    prompt = f"You are a financial analyst. The user wants to know: '{query_text}'.                Analyze the following transaction data (in JSON format): {json.dumps(transactions)}.                Provide a natural language answer summarizing the relevant information                and a structured data object for charting. For example, if the user asks to compare                spending in May and June, you should compare the provided transactions for each                month and then compare the results. Respond with a JSON object containing                'natural_language_answer' and 'structured_data'."
 
     try:
         response = model.generate_content(prompt)
@@ -195,6 +186,13 @@ def generate_recipe_suggestion(pantry_items: list, user_preferences: Optional[st
     """
     Provides recipe ideas based on the items currently available in the user's
     'Virtual Pantry'. This is a creative task.
+    
+    Args:
+        pantry_items: A list of ingredient strings
+        user_preferences: Optional user preferences for recipes
+        
+    Returns:
+        A list of recipe suggestions
     """
     if not SPOONACULAR_API_KEY:
         return [{"error": "SPOONACULAR_API_KEY is not configured."}]
@@ -270,7 +268,7 @@ def run_proactive_analysis(user_id: str, id_token: str) -> dict:
         insight = json.loads(response.text)
 
         if insight.get("insight_found"):
-            send_push_notification(user_id, insight["insight_message"])
+            send_push_notification(user_id, insight["insight_message"], id_token)
             return insight
         else:
             return {"insight_found": False, "insight_message": "No new insights found."}
