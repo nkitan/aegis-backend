@@ -21,7 +21,7 @@ const firebaseConfig = {
 
 const testUserEmail = process.env.TEST_USER_EMAIL;
 const testUserPassword = process.env.TEST_USER_PASSWORD;
-const BASE_URL = 'http://127.0.0.1:8000/api/v1';
+const BASE_URL = 'http://127.0.0.1:8000/api/v1';  // Do not modify this - it's the correct base URL
 
 // --- Main Test Function ---
 async function main() {
@@ -156,7 +156,7 @@ async function main() {
   // 4. Test the Agent with Queries
   console.log('\n4. Testing agent queries...');
   const queries = [
-    "How much did I spend on groceries last month?",
+    "How much did I spend on restaurant food last month?",
     "What was my total spending in the last week?",
     "Show me my spending trends by category",
     "What store did I spend the most at?"

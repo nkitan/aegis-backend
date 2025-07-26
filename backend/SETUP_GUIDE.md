@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     GOOGLE_APPLICATION_CREDENTIALS: str = "path/to/your/firebase_service_account.json"
 
     # Aegnt Agent API URL (if running separately)
-    AEGNT_API_URL: str = "http://localhost:8001/api/v1" # Update if Aegnt agent is deployed elsewhere
+    AEGNT_API_URL: str = "http://localhost:8001" # Update if Aegnt agent is deployed elsewhere
 
     # Gemini API Key
     GEMINI_API_KEY: str = "your_gemini_api_key" # Obtain from Google AI Studio

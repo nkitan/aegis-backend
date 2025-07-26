@@ -35,11 +35,16 @@ class AegntService:
             dict: The processed response from the agent
         """
         try:
+            logger.info(f"Sending request to aegnt at {self.aegnt_url}")
+            
             # Send the message to aegnt
             response = await self.client.post("/invoke_agent", json={
                 "user_id": user_id,
                 "prompt": prompt
-            })
+            }, timeout=10.0)  # Add timeout
+            
+            # Log the response status
+            logger.info(f"Received response from aegnt with status {response.status_code}")
             
             # Raise exception for non-200 responses
             response.raise_for_status()

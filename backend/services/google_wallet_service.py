@@ -133,7 +133,7 @@ class GoogleWalletService:
             claims = {
                 "iss": self.credentials.service_account_email,
                 "aud": "google",
-                "origins": ["https://localhost:8000"],
+                "origins": ["https://127.0.0.1:8000"],
                 "typ": "savetowallet",
                 "payload": {
                     "genericClasses": [generic_class],
