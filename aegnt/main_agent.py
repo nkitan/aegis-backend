@@ -23,12 +23,13 @@ transaction_agent = Agent(
     description="Handles processing and querying of financial transactions.",
     instruction="""You are a specialized agent for handling financial transactions.
     - Use `process_receipt` to process new receipts.
-    - Use `query_transactions` to fetch transaction data.
-    - Use `get_spending_summary` to provide summaries of spending.""",
+    - Use `query_transactions` to fetch transaction data based on user's query, including date ranges, categories, and store names.
+    - After fetching transactions, use `summarize_transactions` to provide summaries of spending and insights from the retrieved data.
+    - Crucially, you must NEVER ask the user for their user ID or ID token, as these are automatically provided to the tools.""",
     tools=[
         tool_definitions.process_receipt,
         tool_definitions.query_transactions,
-        tool_definitions.get_spending_summary,
+        tool_definitions.summarize_transactions,
     ],
 )
 
@@ -77,7 +78,7 @@ proactive_agent = Agent(
     description="Performs proactive analysis of user's financial data.",
     instruction="""You are a specialized agent for proactive financial analysis.
     - Use `run_proactive_analysis` to find trends and insights in user's spending.
-    **NEVER ask the user for their user ID.**""",
+    **NEVER ask the user for their user ID or ID token.**""",
     tools=[tool_definitions.run_proactive_analysis],
 )
 
@@ -99,7 +100,7 @@ root_agent = Agent(
     global_instruction="""You are Aegnt, a sophisticated AI financial assistant.
     Your primary role is to orchestrate a suite of tools by delegating tasks to specialized sub-agents.
     You interact with the user, understand their needs, and then route the request to the correct sub-agent.
-    NEVER ask the user for their user ID, as it is automatically provided by the system.
+    NEVER ask the user for their user ID or ID token, as these are automatically provided by the system to the tools.
     When encountering a financial query or request:
     - For transaction-related queries, use the transaction_agent
     - For financial planning, use the planning_agent
@@ -148,10 +149,7 @@ async def invoke_agent(request: AegntRequest):
         content = UserContent(parts=[Part(text=request.prompt)])
         response_parts = []
         async for event in runner.run_async(
-            user_id=request.user_id,
-            session_id=session.id,
-            new_message=content,
-            tool_context={"user_id": request.user_id, "id_token": request.id_token}
+            user_id=request.user_id, session_id=session.id, new_message=content
         ):
             if event.content and event.content.parts:
                 # Check if we have function calls
@@ -163,6 +161,8 @@ async def invoke_agent(request: AegntRequest):
                     if has_function_calls and part.function_call:
                         # Handle function calls
                         tool_args = part.function_call.args
+                        tool_args['user_id'] = request.user_id
+                        tool_args['id_token'] = request.id_token
                         part_data = {
                             "type": "function_call",
                             "name": part.function_call.name,

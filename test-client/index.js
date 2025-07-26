@@ -117,7 +117,7 @@ async function main() {
 
   const headers = { Authorization: `Bearer ${idToken}` };
 
-  // 2. Upload Sample Receipts
+  /*// 2. Upload Sample Receipts
   console.log('\n2. Uploading sample receipts...');
   const receiptsDir = path.join(process.cwd(), '..', 'sample_reciepts');
   const receiptFiles = fs.readdirSync(receiptsDir);
@@ -129,7 +129,7 @@ async function main() {
     } catch (error) {
       console.error(`   Failed to upload ${file}`);
     }
-  }
+  }*/
 
   // 3. Fetch uploaded transactions to verify they were stored
   console.log('\n3. Fetching transactions...');
@@ -147,8 +147,8 @@ async function main() {
     
     // Also test with category filter
     console.log('\n   Fetching Grocery transactions...');
-    const groceryTransactions = await fetchTransactions(idToken, startDate, endDate, 'Groceries');
-    console.log('   Found grocery transactions:', groceryTransactions);
+    const restaurantTransactions = await fetchTransactions(idToken, startDate, endDate, 'Restaurant');
+    console.log('   Found restaurant transactions:', restaurantTransactions);
   } catch (error) {
     console.error('   Failed to fetch transactions:', error.message);
   }
@@ -157,7 +157,7 @@ async function main() {
   console.log('\n4. Testing agent queries...');
   const queries = [
     "How much did I spend on restaurant food last month?",
-    "What was my total spending in the last week?",
+    "What was my total spending in the year 2017?",
     "Show me my spending trends by category",
     "What store did I spend the most at?"
   ];

@@ -92,8 +92,9 @@ def create_calendar_event(event_data: dict) -> dict:
 
 def query_transactions(
     user_id: str,
-    time_period: str,
     id_token: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     category: Optional[str] = None,
     store_name: Optional[str] = None,
     item_name: Optional[str] = None,
@@ -108,21 +109,19 @@ def query_transactions(
     This is the workhorse for most analytical user questions. You must first
     reason about the user's request to determine the correct parameters to use.
     """
-    # Basic parsing of natural language time_period.
-    # A more robust solution would use a dedicated NLP library.
-    end_date = datetime.now()
-    if "last month" in time_period:
-        start_date = (end_date - timedelta(days=30)).strftime('%Y-%m-%d')
-    else: # Default to last 7 days
-        start_date = (end_date - timedelta(days=7)).strftime('%Y-%m-%d')
-    
-    end_date = end_date.strftime('%Y-%m-%d')
+    # Default to last 30 days if no dates are provided
+    if not start_date and not end_date:
+        end_date_obj = datetime.now()
+        start_date_obj = end_date_obj - timedelta(days=30)
+        start_date = start_date_obj.strftime('%Y-%m-%d')
+        end_date = end_date_obj.strftime('%Y-%m-%d')
 
     with httpx.Client() as client:
-        params = {
-            "start_date": start_date,
-            "end_date": end_date,
-        }
+        params = {}
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
         if category:
             params["category"] = category
         if store_name:
@@ -156,89 +155,36 @@ def query_transactions(
             return [{"error": f"An error occurred while requesting the backend: {e}"}]
 
 
-def get_spending_summary(query_text: str, user_id: str, id_token: str) -> dict:
+def summarize_transactions(transactions: list, query_text: str) -> dict:
     """
     Answers high-level financial questions like, 'Compare my grocery spending
     in May vs. June.' It synthesizes data from multiple queries to provide a
     comprehensive answer.
+
+    The `transactions` parameter should be a list of transaction objects, where each object
+    represents a financial transaction and typically includes fields such as:
+    - `transaction_id` (str): Unique identifier for the transaction.
+    - `user_id` (str): The ID of the user who made the transaction.
+    - `amount` (float): The monetary value of the transaction.
+    - `currency` (str): The currency of the transaction (e.g., "USD", "EUR").
+    - `transaction_date` (str): The date of the transaction in 'YYYY-MM-DD' format.
+    - `category` (str): The category of the transaction (e.g., "Groceries", "Restaurant", "Utilities").
+    - `store_name` (str): The name of the store where the transaction occurred.
+    - `description` (str): A brief description of the transaction.
+    - `payment_method` (str): The method of payment (e.g., "Credit Card", "Cash").
+    - `status` (str): The status of the transaction (e.g., "Completed", "Pending").
     """
     if not GEMINI_API_KEY:
         return {"error": "GEMINI_API_KEY is not configured."}
 
     model = genai.GenerativeModel('gemini-2.5-flash')
-    prompt = f"You are a financial analyst. The user wants to know: '{query_text}'.                Based on this query, determine the necessary parameters to call the                query_transactions tool. You should call the tool for each time period                or category mentioned in the user's query. Then, synthesize the                results into a natural language answer and provide a structured                data object for charting. For example, if the user asks to compare                spending in May and June, you should call query_transactions for each                month and then compare the results. Respond with a JSON object containing                'natural_language_answer' and 'structured_data'."
+    transactions = json.loads(transactions_json)
+    prompt = f"You are a financial analyst. The user wants to know: '{query_text}'.                Analyze the following transaction data (in JSON format): {transactions_json}.                Provide a natural language answer summarizing the relevant information                and a structured data object for charting. For example, if the user asks to compare                spending in May and June, you should compare the provided transactions for each                month and then compare the results. Respond with a JSON object containing                'natural_language_answer' and 'structured_data'."
 
     try:
-        # This is a conceptual implementation. In a real ADK application,
-        # you would use the agent's reasoning capabilities to have it
-        # call the query_transactions tool itself.
-        # For this example, we simulate the analysis that the LLM would perform.
-
-        # Simulate LLM analysis of the query to extract parameters
-        # This is where the agent would decide which queries to make.
-        # For "Compare my grocery spending in May vs. June":
-        # This section will be replaced by dynamic parsing and calls to query_transactions
-        # based on the query_text.
-
-        # Example of dynamic parsing (simplified for demonstration):
-        # In a real scenario, you'd use a more robust NLP approach or rely on the agent's reasoning.
-        if "last month" in query_text.lower():
-            start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
-            end_date = datetime.now().strftime('%Y-%m-%d')
-            transactions = query_transactions(user_id, "last month", id_token)
-            total_spending = sum(t.get('total_amount', 0) for t in transactions if 'error' not in t)
-            natural_language_answer = f"Your total spending last month was ${total_spending:.2f}."
-            structured_data = {
-                "chart_type": "bar",
-                "labels": ["Last Month"],
-                "datasets": [
-                    {
-                        "label": "Total Spending",
-                        "data": [total_spending]
-                    }
-                ]
-            }
-        elif "last week" in query_text.lower():
-            start_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-            end_date = datetime.now().strftime('%Y-%m-%d')
-            transactions = query_transactions(user_id, "last week", id_token)
-            total_spending = sum(t.get('total_amount', 0) for t in transactions if 'error' not in t)
-            natural_language_answer = f"Your total spending last week was ${total_spending:.2f}."
-            structured_data = {
-                "chart_type": "bar",
-                "labels": ["Last Week"],
-                "datasets": [
-                    {
-                        "label": "Total Spending",
-                        "data": [total_spending]
-                    }
-                ]
-            }
-        elif "restaurant food last month" in query_text.lower():
-            start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
-            end_date = datetime.now().strftime('%Y-%m-%d')
-            transactions = query_transactions(user_id, "last month", id_token, category="Restaurant")
-            total_spending = sum(t.get('total_amount', 0) for t in transactions if 'error' not in t)
-            natural_language_answer = f"Your spending on restaurant food last month was ${total_spending:.2f}."
-            structured_data = {
-                "chart_type": "bar",
-                "labels": ["Restaurant Food Last Month"],
-                "datasets": [
-                    {
-                        "label": "Restaurant Spending",
-                        "data": [total_spending]
-                    }
-                ]
-            }
-        else:
-            natural_language_answer = "I can provide spending summaries for specific time periods and categories. Please specify your query more clearly."
-            structured_data = {}
-
-        return {
-            "natural_language_answer": natural_language_answer,
-            "structured_data": structured_data
-        }
-
+        response = model.generate_content(prompt)
+        summary = json.loads(response.text)
+        return summary
     except Exception as e:
         return {"error": f"An error occurred while generating the spending summary: {e}"}
 
@@ -294,13 +240,15 @@ def generate_recipe_suggestion(pantry_items: list, user_preferences: Optional[st
         return [{"error": f"An unexpected error occurred: {e}"}]
 
 
-def run_proactive_analysis(user_id: str) -> dict:
+def run_proactive_analysis(user_id: str, id_token: str) -> dict:
     """
     Analyzes a user's recent spending to detect trends, identify subscription
     price hikes, or find upcoming warranty expirations. This tool is triggered
     by the backend scheduler.
     """
-    recent_transactions = query_transactions(user_id, "last 30 days")
+    end_date = datetime.now().strftime('%Y-%m-%d')
+    start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+    recent_transactions = query_transactions(user_id, id_token, start_date=start_date, end_date=end_date)
     
     if not recent_transactions or "error" in recent_transactions[0]:
         return {"insight_found": False, "insight_message": "Could not retrieve recent transactions."}
@@ -336,7 +284,9 @@ def generate_savings_plan(user_id: str, goal_amount: float, time_frame: str, id_
     Helps users with forward-looking problems by creating a personalized savings
     plan based on their spending history.
     """
-    spending_history = query_transactions(user_id, "last 90 days", id_token)
+    end_date = datetime.now().strftime('%Y-%m-%d')
+    start_date = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
+    spending_history = query_transactions(user_id, id_token, start_date=start_date, end_date=end_date)
 
     if not spending_history or "error" in spending_history[0]:
         return {"error": "Could not retrieve spending history."}
