@@ -90,6 +90,7 @@ class AegntService:
                 raise ValueError("Invalid response format from aegnt service")
             
         except httpx.HTTPError as e:
+            print(e)
             logger.error(f"HTTP error invoking aegnt: {str(e)}")
             raise
         except Exception as e:

@@ -56,6 +56,30 @@ async function main() {
     }
   }
 
+  // Function to fetch transactions
+  async function fetchTransactions(accessToken, startDate, endDate, category = null) {
+    try {
+      const params = {
+        start_date: startDate,
+        end_date: endDate,
+        ...(category && { category })
+      };
+      
+      const response = await axios.get(`${BASE_URL}/transactions`, {
+        params,
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      console.log('Transactions:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching transactions:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
   // Function to test the agent
   async function testAgent(accessToken, prompt) {
     try {
@@ -107,8 +131,30 @@ async function main() {
     }
   }
 
-  // 3. Test the Agent with Queries
-  console.log('\n3. Testing agent queries...');
+  // 3. Fetch uploaded transactions to verify they were stored
+  console.log('\n3. Fetching transactions...');
+  try {
+    const currentDate = new Date();
+    const oneWeekAgo = new Date(currentDate);
+    oneWeekAgo.setDate(currentDate.getDate() - 7);
+    
+    const startDate = oneWeekAgo.toISOString().split('T')[0];
+    const endDate = currentDate.toISOString().split('T')[0];
+    
+    console.log(`   Fetching transactions from ${startDate} to ${endDate}...`);
+    const transactions = await fetchTransactions(idToken, startDate, endDate);
+    console.log('   Found transactions:', transactions);
+    
+    // Also test with category filter
+    console.log('\n   Fetching Grocery transactions...');
+    const groceryTransactions = await fetchTransactions(idToken, startDate, endDate, 'Groceries');
+    console.log('   Found grocery transactions:', groceryTransactions);
+  } catch (error) {
+    console.error('   Failed to fetch transactions:', error.message);
+  }
+
+  // 4. Test the Agent with Queries
+  console.log('\n4. Testing agent queries...');
   const queries = [
     "How much did I spend on groceries last month?",
     "What was my total spending in the last week?",
@@ -132,28 +178,6 @@ async function main() {
     console.log('   User Profile:', response.data);
   } catch (error) {
     console.error(`   Error getting user profile: ${error.message}`);
-    if (error.response) {
-      console.error('   Response data:', error.response.data);
-      console.error('   Response status:', error.response.status);
-      console.error('   Response headers:', error.response.headers);
-    }
-  }
-
-  // 3. Invoke the AI Agent
-  console.log('\n3. Invoking the AI agent...');
-  // 3. Upload a dummy receipt
-  console.log('\n3. Uploading a dummy receipt...');
-  const dummyReceiptBase64 = 'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; // 1x1 transparent GIF
-  const receiptData = {
-    image: dummyReceiptBase64,
-    filename: 'dummy_receipt.gif',
-    contentType: 'image/gif'
-  };
-  try {
-    const response = await axios.post(`${BASE_URL}/transactions/upload-receipt`, receiptData, { headers });
-    console.log('   Receipt Upload Response:', response.data);
-  } catch (error) {
-    console.error(`   Error uploading receipt: ${error.message}`);
     if (error.response) {
       console.error('   Response data:', error.response.data);
       console.error('   Response status:', error.response.status);

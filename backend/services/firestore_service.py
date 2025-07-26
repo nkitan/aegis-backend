@@ -1,6 +1,7 @@
 from google.cloud import firestore
 from models.transaction import Transaction
 from typing import List
+from datetime import datetime
 
 class FirestoreService:
     def __init__(self):
@@ -15,12 +16,21 @@ class FirestoreService:
 
     def get_transactions(self, user_id: str, start_date: str, end_date: str, category: str = None, store_name: str = None, item_name: str = None) -> List[Transaction]:
         """Queries transactions for a user based on filters."""
+        # Convert string dates to datetime objects
+        start_datetime = datetime.fromisoformat(start_date)
+        end_datetime = datetime.fromisoformat(end_date)
+        
+        # Ensure user document exists
+        user_ref = self.db.collection('users').document(user_id)
+        user_ref.set({}, merge=True)  # Create if not exists
+        
         query = self.db.collection('users', user_id, 'transactions')\
-            .where('transaction_date', '>=', start_date)\
-            .where('transaction_date', '<=', end_date)
+            .where('transaction_date', '>=', start_datetime)\
+            .where('transaction_date', '<=', end_datetime)
 
+        # Note: When filtering by category, a composite index is required on ['items.category', 'transaction_date']
         if category:
-            query = query.where('items.category', '==', category) # This requires a composite index in Firestore
+            query = query.where('items.category', '==', category)
         if store_name:
             query = query.where('store_name', '==', store_name)
 

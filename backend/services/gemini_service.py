@@ -66,8 +66,40 @@ class GeminiService:
         response = self.model.generate_content([prompt, image])
         # Assuming the model returns a valid JSON string
         try:
-            return json.loads(response.text)
-        except json.JSONDecodeError:
+            # Clean up the response text by removing markdown code block formatting
+            clean_text = response.text.strip()
+            if clean_text.startswith("```json"):
+                clean_text = clean_text[7:]  # Remove ```json
+            elif clean_text.startswith("```"):
+                clean_text = clean_text[3:]  # Remove ```
+            if clean_text.endswith("```"):
+                clean_text = clean_text[:-3]  # Remove trailing ```
+            
+            # Only remove "Callback:" lines, preserving the actual JSON data
+            lines = clean_text.split('\n')
+            cleaned_lines = []
+            for line in lines:
+                if not line.lstrip().startswith("Callback:"):
+                    cleaned_lines.append(line)
+            
+            clean_text = '\n'.join(cleaned_lines).strip()
+            
+            try:
+                # Parse the cleaned JSON
+                return json.loads(clean_text)
+            except json.JSONDecodeError as first_error:
+                print(f"First parse attempt failed: {str(first_error)}")
+                # If parsing fails, try to fix common JSON structural issues
+                import re
+                # Remove any trailing commas before closing brackets/braces
+                clean_text = re.sub(r',(\s*[}\]])', r'\1', clean_text)
+                # Ensure all opened brackets/braces are properly closed
+                open_braces = clean_text.count('{') - clean_text.count('}')
+                open_brackets = clean_text.count('[') - clean_text.count(']')
+                clean_text = clean_text.rstrip() + '}' * open_braces + ']' * open_brackets
+                
+                return json.loads(clean_text)
+        except json.JSONDecodeError as e:
             print(f"Error decoding JSON from Gemini API: {response.text}")
             return {
                 "store_name": "Unknown",

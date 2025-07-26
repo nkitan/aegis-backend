@@ -42,16 +42,53 @@ def process_transaction(file: UploadFile = File(...), current_user: User = Depen
         # If date parsing fails, use current time
         transaction_date = datetime.now()
 
+    # Transform Gemini items format to match Transaction model
+    processed_items = []
+    for item in receipt_data.get("items", []):
+        processed_items.append({
+            "name": item.get("name", "Unknown Item"),
+            "price": item.get("total_price", 0.0),  # Use total_price as price
+            "quantity": item.get("quantity", 1.0),
+            "unit": item.get("unit"),
+            "category": item.get("category", "Unknown"),
+            "original_price": item.get("unit_price"),
+            "discount": item.get("total_price", 0.0) - item.get("unit_price", 0.0) * item.get("quantity", 1.0) if item.get("unit_price") else None
+        })
+
+    # Format location data into a string
+    store_location = receipt_data.get("store_location", {})
+    location_str = None
+    if store_location:
+        location_parts = []
+        if store_location.get("address"): location_parts.append(store_location["address"])
+        if store_location.get("city"): location_parts.append(store_location["city"])
+        if store_location.get("state"): location_parts.append(store_location["state"])
+        if store_location.get("postal_code"): location_parts.append(store_location["postal_code"])
+        if store_location.get("country"): location_parts.append(store_location["country"])
+        location_str = ", ".join(filter(None, location_parts))
+
     transaction_data = {
         "user_id": current_user.uid,
+        "store_name": receipt_data.get("store_name", "Unknown"),
         "transaction_date": transaction_date,
-        **receipt_data
+        "items": processed_items,
+        "total_amount": receipt_data.get("total_amount", 0.0),
+        "subtotal_amount": receipt_data.get("subtotal", 0.0),
+        "tax_amount": receipt_data.get("tax"),
+        "discount_amount": receipt_data.get("tip"),
+        "currency": receipt_data.get("currency", "USD"),
+        "payment_method": receipt_data.get("payment_method"),
+        "category": receipt_data.get("transaction_category"),  # Overall transaction category
+        "location": location_str  # Now a properly formatted string
     }
-    transaction_id = firestore_service.add_transaction(current_user.uid, transaction_data)
+
+    # Validate the data against the Transaction model
+    transaction = Transaction(**transaction_data)
+    transaction_id = firestore_service.add_transaction(current_user.uid, transaction.model_dump())
 
     # 4. Enrich the data (e.g., with Google Maps location data)
     store_name = transaction_data.get("store_name")
-    if store_name:
+    if store_name and not transaction_data.get("location"):  # Only lookup if we don't have a location
         geocode_result = gmaps.geocode(store_name)
         if geocode_result:
             location = geocode_result[0]['formatted_address']
