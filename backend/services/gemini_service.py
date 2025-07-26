@@ -11,7 +11,7 @@ class GeminiService:
     def __init__(self):
         self.model = genai.GenerativeModel('gemini-2.5-flash')
 
-    def extract_from_receipt
+    def extract_from_receipt(self, receipt_image: bytes) -> dict:
         """
         Uses Gemini Pro Vision to extract structured data from a receipt image.
         """
@@ -19,14 +19,49 @@ class GeminiService:
         prompt = """Extract the following information from the receipt as a JSON object:
         {
             "store_name": "<store name>",
+            "store_location": {
+                "address": "<street address>",
+                "city": "<city>",
+                "state": "<state/province>",
+                "postal_code": "<zip/postal code>",
+                "country": "<country>",
+                "phone": "<store phone if available>"
+            },
             "transaction_date": "YYYY-MM-DDTHH:MM:SS",
+            "currency": "<currency code: USD, EUR, GBP, etc.>",
             "items": [
-                {"name": "<item name>", "price": <price>, "category": "<category>"}
+                {
+                    "name": "<item name>",
+                    "quantity": <number of items>,
+                    "unit_price": <price per unit>,
+                    "total_price": <total price for this item>,
+                    "category": "<category>"
+                }
             ],
-            "total_amount": <total amount>,
-            "transaction_category": "<overall transaction category>"
+            "subtotal": <amount before tax/tips>,
+            "tax": <tax amount>,
+            "tip": <tip amount if applicable>,
+            "total_amount": <final total amount>,
+            "transaction_category": "<overall transaction category>",
+            "payment_method": "<payment method if shown>"
         }
-        If a field is not found, use null. For item category, try to infer a general category like 'Groceries', 'Restaurant', 'Electronics', 'Clothing', etc. For overall transaction category, infer a single category that best describes the entire transaction.
+
+        Important instructions:
+        1. If a field is not found, use null
+        2. For currency, use standard 3-letter currency codes (USD, EUR, GBP, etc.)
+        3. For quantities: 
+           - If not explicitly stated, use 1
+           - For weighted items (like produce), include the weight in the item name (e.g., "Apples 1.5 lbs")
+        4. For item category, use general categories like: 'Groceries', 'Restaurant', 'Electronics', 'Clothing', 'Home', etc.
+        5. For transaction_category, infer a single category that best describes the entire purchase
+        6. Make sure unit_price × quantity equals total_price for each item
+        7. Ensure all monetary values are numbers, not strings
+        8. For store location:
+           - Extract as much location detail as visible on the receipt
+           - Format addresses according to local conventions
+           - Use standard state/province codes where applicable (e.g., CA for California)
+           - Use standard country codes (e.g., US, UK, CA)
+           - Format phone numbers consistently with country conventions
         """
         response = self.model.generate_content([prompt, image])
         # Assuming the model returns a valid JSON string

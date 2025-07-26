@@ -11,7 +11,7 @@ from pydantic import BaseModel
 import uvicorn
 from google.adk.agents import Agent
 from google.adk.tools.agent_tool import AgentTool
-from . import tool_definitions
+import tool_definitions
 from google.adk.runners import InMemoryRunner
 from google.genai.types import Part, UserContent
 import asyncio

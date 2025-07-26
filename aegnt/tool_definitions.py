@@ -10,7 +10,7 @@ import httpx
 import json
 from datetime import datetime, timedelta
 import google.generativeai as genai
-from .config import BACKEND_API_BASE_URL, GEMINI_API_KEY, BACKEND_API_TOKEN
+from config import BACKEND_API_BASE_URL, GEMINI_API_KEY, BACKEND_API_TOKEN
 from typing import Optional
 
 # Configure the Gemini API key
@@ -102,6 +102,11 @@ def query_transactions(
     category: Optional[str] = None,
     store_name: Optional[str] = None,
     item_name: Optional[str] = None,
+    currency: Optional[str] = None,
+    city: Optional[str] = None,
+    state: Optional[str] = None,
+    country: Optional[str] = None,
+    postal_code: Optional[str] = None,
 ) -> list:
     """
     A flexible tool to retrieve specific transaction data by querying the backend.
@@ -133,6 +138,16 @@ def query_transactions(
             params["store_name"] = store_name
         if item_name:
             params["item_name"] = item_name
+        if currency:
+            params["currency"] = currency
+        if city:
+            params["city"] = city
+        if state:
+            params["state"] = state
+        if country:
+            params["country"] = country
+        if postal_code:
+            params["postal_code"] = postal_code
         
         headers = {}
         if BACKEND_API_TOKEN:
@@ -200,7 +215,7 @@ def get_spending_summary(query_text: str, user_id: str) -> dict:
         return {"error": f"An error occurred while generating the spending summary: {e}"}
 
 
-from .config import SPOONACULAR_API_KEY
+from config import SPOONACULAR_API_KEY
 
 def generate_recipe_suggestion(pantry_items: list, user_preferences: Optional[str] = None) -> list:
     """
