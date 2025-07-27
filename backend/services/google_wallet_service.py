@@ -98,10 +98,15 @@ class GoogleWalletService:
                 },
                 "textModulesData": [
                     {"header": "Store", "body": pass_data.get("store_name", "N/A"), "id": "store"},
-                    {"header": "Total Amount", "body": f"${pass_data.get('total_amount', 0.0):.2f}", "id": "totalAmount"},
+                    {"header": "Total Amount", "body": f"{pass_data.get('currency', '$')}{pass_data.get('total_amount', 0.0):.2f}", "id": "totalAmount"},
+                    {"header": "Subtotal", "body": f"{pass_data.get('currency', '$')}{pass_data.get('subtotal_amount', 0.0):.2f}", "id": "subtotal"},
+                    {"header": "Tax", "body": f"{pass_data.get('currency', '$')}{pass_data.get('tax_amount', 0.0):.2f}" if pass_data.get('tax_amount') else "N/A", "id": "tax"},
+                    {"header": "Discount", "body": f"{pass_data.get('currency', '$')}{pass_data.get('discount_amount', 0.0):.2f}" if pass_data.get('discount_amount') else "N/A", "id": "discount"},
                     {"header": "Date", "body": pass_data.get("transaction_date", "N/A"), "id": "date"},
                     {"header": "Category", "body": pass_data.get("category", "N/A"), "id": "category"},
-                    {"header": "Items", "body": ", ".join([i.get('name', 'Unknown') for i in pass_data.get("items", [])]), "id": "items"}
+                    {"header": "Payment Method", "body": pass_data.get("payment_method", "N/A"), "id": "paymentMethod"},
+                    {"header": "Location", "body": pass_data.get("location_string", "N/A"), "id": "location"},
+                    {"header": "Items", "body": self._format_items_for_display(pass_data.get("items", [])), "id": "items"}
                 ],
                 "hexBackgroundColor": "#4285f4",
                 "logo": {
@@ -149,3 +154,33 @@ class GoogleWalletService:
         except Exception as e:
             logger.error(f"Error creating Google Wallet pass: {str(e)}")
             raise
+
+    def _format_items_for_display(self, items: list) -> str:
+        """
+        Format items list for display in the wallet pass.
+        
+        Args:
+            items: List of item dictionaries
+            
+        Returns:
+            str: Formatted string of items for display
+        """
+        if not items:
+            return "No items"
+        
+        formatted_items = []
+        for item in items[:5]:  # Limit to first 5 items to avoid too much text
+            name = item.get('name', 'Unknown Item')
+            quantity = item.get('quantity', 1)
+            price = item.get('price', 0.0)
+            
+            if quantity > 1:
+                formatted_items.append(f"{quantity}x {name} (${price:.2f})")
+            else:
+                formatted_items.append(f"{name} (${price:.2f})")
+        
+        result = ", ".join(formatted_items)
+        if len(items) > 5:
+            result += f" +{len(items) - 5} more items"
+        
+        return result

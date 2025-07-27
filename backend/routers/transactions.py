@@ -96,26 +96,35 @@ def process_transaction(file: UploadFile = File(...), current_user: User = Depen
             # Update the transaction in Firestore with the enriched location data
             firestore_service.update_transaction(current_user.uid, transaction_id, {"location": location})
 
-    # 5. Trigger the creation of a Google Wallet pass
+    # 5. Trigger the creation of a Google Wallet pass with ALL parsed data
+    wallet_pass_url = None
     try:
         # Format the transaction date for the wallet pass
         if isinstance(transaction_data.get("transaction_date"), datetime):
-            formatted_date = transaction_data["transaction_date"].isoformat()
+            formatted_date = transaction_data["transaction_date"].strftime("%Y-%m-%d")
         else:
             # If it's already a string, use it as is
-            formatted_date = str(transaction_data.get("transaction_date", datetime.now().isoformat()))
+            formatted_date = str(transaction_data.get("transaction_date", datetime.now().strftime("%Y-%m-%d")))
 
+        # Include ALL parsed data in the wallet pass
         wallet_pass_data = {
             "transaction_id": transaction_id,
-            "store_name": transaction_data.get("store_name"),
-            "total_amount": transaction_data.get("total_amount"),
+            "store_name": transaction_data.get("store_name", "Unknown Store"),
+            "total_amount": transaction_data.get("total_amount", 0.0),
+            "subtotal_amount": transaction_data.get("subtotal_amount", 0.0),
+            "tax_amount": transaction_data.get("tax_amount", 0.0),
+            "discount_amount": transaction_data.get("discount_amount", 0.0),
             "transaction_date": formatted_date,
-            "category": transaction_data.get("category"),
-            "location": transaction_data.get("location", transaction_data.get("store_location", {}))
+            "category": transaction_data.get("category", "General"),
+            "currency": transaction_data.get("currency", "USD"),
+            "payment_method": transaction_data.get("payment_method", "Unknown"),
+            "items": processed_items,  # Include all items with full details
+            "store_location": store_location if store_location else {},
+            "location_string": transaction_data.get("location", "")
         }
         
         # Create the wallet pass with explicit pass type
-        google_wallet_service.create_pass(
+        wallet_pass_url = google_wallet_service.create_pass(
             pass_type="transaction",
             pass_data=wallet_pass_data
         )
@@ -123,7 +132,15 @@ def process_transaction(file: UploadFile = File(...), current_user: User = Depen
         print(f"Warning: Failed to create wallet pass: {str(e)}")
         # Don't raise the error, as we still want to return the transaction data
 
-    return {"status": "success", "transaction_id": transaction_id}
+    # Return comprehensive response including wallet pass URL
+    response_data = {
+        "status": "success", 
+        "transaction_id": transaction_id,
+        "transaction_data": transaction_data,
+        "google_wallet_pass_url": wallet_pass_url
+    }
+    
+    return response_data
 
 @router.get("/transactions", response_model=List[Transaction])
 def get_transactions(
