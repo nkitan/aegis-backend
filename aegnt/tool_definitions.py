@@ -204,43 +204,34 @@ def query_transactions(
 def analyze_financial_data(
     user_id: str,
     id_token: str,
-    query_text: str,
-    start_date: Optional[str],
-    end_date: Optional[str],
-    category: Optional[str],
-    store_name: Optional[str],
-    item_name: Optional[str],
-    currency: Optional[str],
-    city: Optional[str],
-    state: Optional[str],
-    country: Optional[str],
-    postal_code: Optional[str],
+    query_text: str
 ) -> dict:
     """
     Complete end-to-end financial analysis that retrieves data from database and provides insights.
     
     This function combines data retrieval and analysis to provide comprehensive financial insights
-    based on the user's question and specified filters. It ONLY provides insights based on 
-    actual transaction data from the user's database.
+    based on the user's question. It automatically detects filters from the query text.
     
     Args:
         user_id: User identifier
         id_token: Authentication token
         query_text: User's financial question or analysis request
-        start_date: Start date filter (YYYY-MM-DD format)
-        end_date: End date filter (YYYY-MM-DD format)
-        category: Transaction category filter
-        store_name: Store name filter
-        item_name: Item name filter
-        currency: Currency filter
-        city: City filter
-        state: State filter
-        country: Country filter
-        postal_code: Postal code filter
         
     Returns:
         Complete analysis with transaction data, insights, and structured data for visualization
     """
+    
+    # Initialize filter variables
+    start_date = None
+    end_date = None
+    category = None
+    store_name = None
+    item_name = None
+    currency = None
+    city = None
+    state = None
+    country = None
+    postal_code = None
     
     # Smart date range detection based on query text
     query_lower = query_text.lower()
@@ -252,9 +243,8 @@ def analyze_financial_data(
         "summary", "analysis", "compare", "comparison"
     ]):
         # Use a very wide date range to capture all historical data
-        if not start_date and not end_date:
-            start_date = "2015-01-01"  # Go back far enough to capture all data
-            end_date = datetime.now().strftime('%Y-%m-%d')
+        start_date = "2015-01-01"  # Go back far enough to capture all data
+        end_date = datetime.now().strftime('%Y-%m-%d')
     
     # Handle specific time period queries
     elif "last month" in query_lower:
@@ -276,14 +266,21 @@ def analyze_financial_data(
             start_date = f"{year}-01-01"
             end_date = f"{year}-12-31"
     
+    # Extract date ranges from natural language if present
+    if "since" in query_lower:
+        import re
+        date_match = re.search(r'since (\d{4})', query_lower)
+        if date_match:
+            start_date = f"{date_match.group(1)}-01-01"
+            end_date = datetime.now().strftime('%Y-%m-%d')
+    
     # Smart category detection
-    if not category:
-        if any(word in query_lower for word in ["restaurant", "food", "dining", "eating"]):
-            category = "Restaurant"
-        elif any(word in query_lower for word in ["grocery", "groceries", "supermarket"]):
-            category = "Grocery Store"
-        elif any(word in query_lower for word in ["electronics", "tech", "mobile", "phone"]):
-            category = "Electronics Store"
+    if any(word in query_lower for word in ["restaurant", "food", "dining", "eating"]):
+        category = "Restaurant"
+    elif any(word in query_lower for word in ["grocery", "groceries", "supermarket"]):
+        category = "Grocery Store"
+    elif any(word in query_lower for word in ["electronics", "tech", "mobile", "phone"]):
+        category = "Electronics Store"
     
     # Step 1: Retrieve transaction data from database
     transactions = query_transactions(
