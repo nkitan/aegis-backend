@@ -35,6 +35,11 @@ curl -X POST "http://localhost:8000/api/v1/transactions/process" \
 curl -X POST "http://localhost:8000/api/v1/transactions/process" \
   -H "Authorization: Bearer test_token" \
   -F "file=@/home/notroot/Work/project-aegis/sample_reciepts/picture_1.jpg"
+
+# Example with UPI transaction screenshot
+curl -X POST "http://localhost:8000/api/v1/transactions/process" \
+  -H "Authorization: Bearer test_token" \
+  -F "file=@/path/to/upi/transaction/screenshot.jpg"
 ```
 
 **Expected Response:**
@@ -558,6 +563,15 @@ This comprehensive test suite covers all major functionality in the Project Aegi
 - **Problem**: 401 Unauthorized errors
   - **Solution**: The system uses Firebase authentication bypass for testing. Use any valid Bearer token format.
   - **Test Token**: `Bearer test_token` works for all endpoints.
+
+#### UPI Transaction Processing Issues
+- **Problem**: ValidationError for store_name when processing UPI screenshots
+  - **Root Cause**: UPI transaction screenshots may not contain traditional merchant/store information
+  - **Solution**: Enhanced validation with smart fallbacks:
+    - Detects UPI/digital payment transactions
+    - Uses "Digital Payment Transaction" as store name for UPI transactions
+    - Creates generic "Transaction Amount" item when no items are detected
+    - Ensures all required fields have valid non-null values
 
 #### File Upload Issues
 - **Problem**: Receipt processing fails with file errors

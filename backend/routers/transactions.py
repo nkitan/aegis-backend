@@ -44,16 +44,37 @@ def process_transaction(file: UploadFile = File(...), current_user: User = Depen
 
     # Transform Gemini items format to match Transaction model
     processed_items = []
-    for item in receipt_data.get("items", []):
+    items_list = receipt_data.get("items", [])
+    
+    # Handle case where no items are detected (common in UPI screenshots)
+    if not items_list or len(items_list) == 0:
+        # Create a generic item for UPI transactions
+        total_amount = receipt_data.get("total_amount", 0.0)
         processed_items.append({
-            "name": item.get("name", "Unknown Item"),
-            "price": item.get("total_price", 0.0),  # Use total_price as price
-            "quantity": item.get("quantity", 1.0),
-            "unit": item.get("unit"),
-            "category": item.get("category", "Unknown"),
-            "original_price": item.get("unit_price"),
-            "discount": item.get("total_price", 0.0) - item.get("unit_price", 0.0) * item.get("quantity", 1.0) if item.get("unit_price") else None
+            "name": "Transaction Amount",
+            "price": float(total_amount),
+            "quantity": 1.0,
+            "unit": None,
+            "category": "Digital Payment",
+            "original_price": None,
+            "discount": None
         })
+    else:
+        for item in items_list:
+            # Ensure all required fields have valid values
+            item_name = item.get("name")
+            if not item_name or item_name.strip() == "":
+                item_name = "Unknown Item"
+            
+            processed_items.append({
+                "name": item_name,
+                "price": float(item.get("total_price", 0.0)),  # Use total_price as price
+                "quantity": float(item.get("quantity", 1.0)),
+                "unit": item.get("unit"),
+                "category": item.get("category") or "Unknown",
+                "original_price": float(item.get("unit_price")) if item.get("unit_price") else None,
+                "discount": float(item.get("total_price", 0.0)) - float(item.get("unit_price", 0.0)) * float(item.get("quantity", 1.0)) if item.get("unit_price") else None
+            })
 
     # Format location data into a string
     store_location = receipt_data.get("store_location", {})
@@ -67,23 +88,47 @@ def process_transaction(file: UploadFile = File(...), current_user: User = Depen
         if store_location.get("country"): location_parts.append(store_location["country"])
         location_str = ", ".join(filter(None, location_parts))
 
+    # Ensure all required fields have valid values with proper fallbacks
+    store_name = receipt_data.get("store_name")
+    if not store_name or store_name.strip() == "":
+        # For UPI transactions, try to extract merchant from payment_method or use generic fallback
+        payment_method = receipt_data.get("payment_method", "")
+        if "UPI" in payment_method.upper() or "PAYTM" in payment_method.upper() or "GPAY" in payment_method.upper():
+            store_name = "Digital Payment Transaction"
+        else:
+            store_name = "Unknown Merchant"
+
     transaction_data = {
         "user_id": current_user.uid,
-        "store_name": receipt_data.get("store_name", "Unknown"),
+        "store_name": store_name,
         "transaction_date": transaction_date,
         "items": processed_items,
-        "total_amount": receipt_data.get("total_amount", 0.0),
-        "subtotal_amount": receipt_data.get("subtotal", 0.0),
-        "tax_amount": receipt_data.get("tax"),
-        "discount_amount": receipt_data.get("tip"),
-        "currency": receipt_data.get("currency", "USD"),
-        "payment_method": receipt_data.get("payment_method"),
-        "category": receipt_data.get("transaction_category"),  # Overall transaction category
+        "total_amount": float(receipt_data.get("total_amount", 0.0)),
+        "subtotal_amount": float(receipt_data.get("subtotal", 0.0)),
+        "tax_amount": float(receipt_data.get("tax", 0.0)) if receipt_data.get("tax") else None,
+        "discount_amount": float(receipt_data.get("tip", 0.0)) if receipt_data.get("tip") else None,
+        "currency": receipt_data.get("currency") or "USD",
+        "payment_method": receipt_data.get("payment_method") or "Unknown",
+        "category": receipt_data.get("transaction_category") or "General",
         "location": location_str  # Now a properly formatted string
     }
 
     # Validate the data against the Transaction model
-    transaction = Transaction(**transaction_data)
+    try:
+        transaction = Transaction(**transaction_data)
+    except Exception as validation_error:
+        # Log the validation error and the data that caused it
+        print(f"Transaction validation error: {validation_error}")
+        print(f"Transaction data: {transaction_data}")
+        
+        # Return a more helpful error response
+        return {
+            "status": "error",
+            "message": "Failed to validate transaction data",
+            "details": str(validation_error),
+            "transaction_data": transaction_data
+        }
+    
     transaction_id = firestore_service.add_transaction(current_user.uid, transaction.model_dump())
 
     # 4. Enrich the data (e.g., with Google Maps location data)
