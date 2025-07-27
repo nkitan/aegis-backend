@@ -293,7 +293,7 @@ def analyze_financial_data(
             "data_count": len(transactions)
         }
 
-    model = genai.GenerativeModel('gemini-2.5-pro')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     
     # Enhanced prompt with better analysis instructions
     prompt = f"""You are a financial analyst. The user wants to know: '{query_text}'.
@@ -399,7 +399,7 @@ def summarize_transactions(transactions: list, query_text: str) -> dict:
     if not GEMINI_API_KEY:
         return {"error": "GEMINI_API_KEY is not configured."}
 
-    model = genai.GenerativeModel('gemini-2.5-pro')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     prompt = f"You are a financial analyst. The user wants to know: '{query_text}'.                Analyze the following transaction data (in JSON format): {json.dumps(transactions)}.                Provide a natural language answer summarizing the relevant information                and a structured data object for charting. For example, if the user asks to compare                spending in May and June, you should compare the provided transactions for each                month and then compare the results. Respond with a JSON object containing                'natural_language_answer' and 'structured_data'."
 
     try:
@@ -412,7 +412,7 @@ def summarize_transactions(transactions: list, query_text: str) -> dict:
 
 from config import SPOONACULAR_API_KEY
 
-def generate_recipe_suggestion(pantry_items: list, user_preferences: Optional[str] = None) -> list:
+def generate_recipe_suggestion(pantry_items: list[str], user_preferences: Optional[str] = None) -> dict:
     """
     Provides recipe ideas based on the items currently available in the user's
     'Virtual Pantry'. This is a creative task.
@@ -422,10 +422,10 @@ def generate_recipe_suggestion(pantry_items: list, user_preferences: Optional[st
         user_preferences: Optional user preferences for recipes
         
     Returns:
-        A list of recipe suggestions
+        A dictionary containing recipe suggestions
     """
     if not SPOONACULAR_API_KEY:
-        return [{"error": "SPOONACULAR_API_KEY is not configured."}]
+        return {"error": "SPOONACULAR_API_KEY is not configured."}
 
     ingredients_str = ','.join(pantry_items)
     
@@ -459,13 +459,13 @@ def generate_recipe_suggestion(pantry_items: list, user_preferences: Optional[st
         else:
             suggestions.append("No recipes found with the given ingredients.")
             
-        return suggestions
+        return {"recipes": suggestions, "count": len(suggestions)}
     except httpx.HTTPStatusError as e:
-        return [{"error": f"HTTP error occurred: {e.response.status_code} - {e.response.text}"}]
+        return {"error": f"HTTP error occurred: {e.response.status_code} - {e.response.text}"}
     except httpx.RequestError as e:
-        return [{"error": f"An error occurred while requesting the Spoonacular API: {e}"}]
+        return {"error": f"An error occurred while requesting the Spoonacular API: {e}"}
     except Exception as e:
-        return [{"error": f"An unexpected error occurred: {e}"}]
+        return {"error": f"An unexpected error occurred: {e}"}
 
 
 def run_proactive_analysis(user_id: str, id_token: str) -> dict:

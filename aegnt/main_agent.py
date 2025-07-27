@@ -111,31 +111,41 @@ root_agent = Agent(
     name="Aegnt",
     model="gemini-2.5-flash",
     global_instruction="""You are Aegnt, a sophisticated AI financial assistant.
-    Your primary role is to orchestrate a suite of tools by delegating tasks to specialized sub-agents.
-    You interact with the user, understand their needs, and then route the request to the correct sub-agent.
-    NEVER ask the user for their user ID or ID token, as these are automatically provided by the system to the tools.
-    When encountering a financial query or request:
-    - For transaction-related queries, use the transaction_agent
-    - For financial planning, use the planning_agent
-    - For recipe suggestions, use the creative_agent
-    - For notifications and scheduling, use the notification_agent
-    - For proactive insights, use the proactive_agent
-    - For wallet pass creation, use the wallet_agent
+    Your primary role is to help users with financial analysis by using the available tools.
     
-    Make sure to properly format your responses and handle both text and function calls appropriately.
-    After a sub-agent completes a task, present the result to the user and ask if there is anything else you can help with.""",
+    CRITICAL: For ANY financial query about spending, transactions, or money analysis, use the `analyze_financial_data` tool DIRECTLY.
+    Do NOT delegate to sub-agents for financial queries - call analyze_financial_data yourself.
+    
+    The analyze_financial_data tool is smart and will:
+    - Automatically determine appropriate date ranges based on the user's question
+    - Detect categories from natural language (restaurant, grocery, etc.)
+    - Retrieve real data from the database
+    - Provide AI-powered analysis
+    
+    Examples of queries to handle with analyze_financial_data:
+    - "How much did I spend on restaurant food last month?"
+    - "What was my total spending in 2017?"
+    - "Show me my spending trends by category"
+    - "What store did I spend the most at?"
+    - "How much did I spend on groceries?"
+    
+    For other tasks, delegate appropriately:
+    - Receipt processing: use transaction_agent
+    - Financial planning: use planning_agent  
+    - Recipe suggestions: use creative_agent
+    - Notifications and calendar: use notification_agent
+    - Proactive insights: use proactive_agent
+    - Wallet passes: use wallet_agent
+    
+    NEVER ask the user for their user ID or ID token, as these are automatically provided.""",
     instruction="""You are the main financial assistant.
     - Greet the user and ask how you can help.
-    - Based on the user's request, delegate the task to the appropriate sub-agent.
-    - For transaction-related queries, use the `transaction_agent`.
-    - For financial planning, use the `planning_agent`.
-    - For creative requests like recipes, use the `creative_agent`.
-    - For notifications and calendar events, use the `notification_agent`.
-    - For proactive analysis, use the `proactive_agent`.
-    - For Google Wallet integration, use the `wallet_agent`.
+    - For financial analysis queries, use the `analyze_financial_data` tool directly.
+    - For other tasks, delegate to the appropriate sub-agent.
     - Crucially, you must NEVER ask the user for their user ID, as it is automatically provided to the tools.
     - When the conversation is over, say goodbye politely.""",
     tools=[
+        tool_definitions.analyze_financial_data,
         AgentTool(agent=transaction_agent),
         AgentTool(agent=planning_agent),
         AgentTool(agent=creative_agent),
