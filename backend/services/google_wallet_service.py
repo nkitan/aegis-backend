@@ -150,6 +150,11 @@ class GoogleWalletService:
 
             signer = crypt.RSASigner.from_service_account_file(settings.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY_FILE)
             token = jwt.encode(signer, claims)
+            
+            # Ensure token is a string, not bytes
+            if isinstance(token, bytes):
+                token = token.decode('utf-8')
+            
             return f"https://pay.google.com/gp/v/save/{token}"
         except Exception as e:
             logger.error(f"Error creating Google Wallet pass: {str(e)}")
