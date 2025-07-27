@@ -22,16 +22,15 @@ import asyncio
 transaction_agent = Agent(
     name="transaction_agent",
     model="gemini-2.5-flash",
-    description="Handles processing and querying of financial transactions.",
-    instruction="""You are a specialized agent for handling financial transactions.
-    - For all data retrieval, you MUST use `query_transactions` to fetch transaction data based on user's query, including date ranges, categories, and store names. DO NOT use any external search tools.
+    description="Handles processing and querying of financial transactions with analysis.",
+    instruction="""You are a specialized agent for handling financial transactions and analysis.
+    - For all transaction analysis queries, use `analyze_financial_data` which retrieves data from the database AND provides insights in one step.
     - Use `process_receipt` to process new receipts.
-    - After fetching transactions with `query_transactions`, use `summarize_transactions` to provide summaries of spending and insights from the retrieved data.
+    - The `analyze_financial_data` function combines data retrieval and AI analysis, so you don't need separate steps.
     - Crucially, you must NEVER ask the user for their user ID or ID token, as these are automatically provided to the tools.""",
     tools=[
         tool_definitions.process_receipt,
-        tool_definitions.query_transactions,
-        tool_definitions.summarize_transactions,
+        tool_definitions.analyze_financial_data,
     ],
 )
 
@@ -42,10 +41,12 @@ planning_agent = Agent(
     description="Helps users with financial planning, including savings plans and challenges.",
     instruction="""You are a specialized agent for financial planning.
     - Use `generate_savings_plan` to create personalized savings plans.
-    - Use `manage_savings_challenge` to manage savings challenges.""",
+    - Use `manage_savings_challenge` to manage savings challenges.
+    - Use `analyze_financial_data` if you need to analyze spending patterns for planning purposes.""",
     tools=[
         tool_definitions.generate_savings_plan,
         tool_definitions.manage_savings_challenge,
+        tool_definitions.analyze_financial_data,
     ],
 )
 

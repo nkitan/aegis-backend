@@ -105,9 +105,8 @@ def query_transactions(
     postal_code: Optional[str] = None,
 ) -> list:
     """
-    A flexible tool to retrieve specific transaction data by querying the backend.
-    This is the workhorse for most analytical user questions. You must first
-    reason about the user's request to determine the correct parameters to use.
+    Helper function to retrieve transaction data from the backend database.
+    Used internally by other analysis functions.
     """
     # Default to last 30 days if no dates are provided
     if not start_date and not end_date:
@@ -153,6 +152,99 @@ def query_transactions(
             return [{"error": f"HTTP error occurred: {e.response.status_code} - {e.response.text}"}]
         except httpx.RequestError as e:
             return [{"error": f"An error occurred while requesting the backend: {e}"}]
+
+
+def analyze_financial_data(
+    user_id: str,
+    id_token: str,
+    query_text: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    category: Optional[str] = None,
+    store_name: Optional[str] = None,
+    item_name: Optional[str] = None,
+    currency: Optional[str] = None,
+    city: Optional[str] = None,
+    state: Optional[str] = None,
+    country: Optional[str] = None,
+    postal_code: Optional[str] = None,
+) -> dict:
+    """
+    Complete end-to-end financial analysis that retrieves data from database and provides insights.
+    
+    This function combines data retrieval and analysis to provide comprehensive financial insights
+    based on the user's question and specified filters.
+    
+    Args:
+        user_id: User identifier
+        id_token: Authentication token
+        query_text: User's financial question or analysis request
+        start_date: Start date filter (YYYY-MM-DD format)
+        end_date: End date filter (YYYY-MM-DD format)
+        category: Transaction category filter
+        store_name: Store name filter
+        item_name: Item name filter
+        currency: Currency filter
+        city: City filter
+        state: State filter
+        country: Country filter
+        postal_code: Postal code filter
+        
+    Returns:
+        Complete analysis with transaction data, insights, and structured data for visualization
+    """
+    # Step 1: Retrieve transaction data from database
+    transactions = query_transactions(
+        user_id=user_id,
+        id_token=id_token,
+        start_date=start_date,
+        end_date=end_date,
+        category=category,
+        store_name=store_name,
+        item_name=item_name,
+        currency=currency,
+        city=city,
+        state=state,
+        country=country,
+        postal_code=postal_code
+    )
+    
+    # Step 2: Check if data retrieval was successful
+    if not transactions:
+        return {
+            "error": "No transaction data found for the specified criteria",
+            "transactions": [],
+            "analysis": None
+        }
+    
+    if isinstance(transactions, list) and len(transactions) > 0 and "error" in transactions[0]:
+        return {
+            "error": transactions[0]["error"],
+            "transactions": [],
+            "analysis": None
+        }
+    
+    # Step 3: Perform analysis using Gemini
+    analysis_result = summarize_transactions(transactions, query_text)
+    
+    # Step 4: Return combined result
+    return {
+        "transactions": transactions,
+        "analysis": analysis_result,
+        "query": query_text,
+        "filters_applied": {
+            "start_date": start_date,
+            "end_date": end_date,
+            "category": category,
+            "store_name": store_name,
+            "item_name": item_name,
+            "currency": currency,
+            "city": city,
+            "state": state,
+            "country": country,
+            "postal_code": postal_code
+        }
+    }
 
 
 def summarize_transactions(transactions: list, query_text: str) -> dict:
