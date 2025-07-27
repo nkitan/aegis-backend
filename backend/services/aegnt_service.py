@@ -42,7 +42,7 @@ class AegntService:
                 "user_id": user_id,
                 "prompt": prompt,
                 "id_token": id_token,
-            }, timeout=30.0)  # Add timeout
+            }, timeout=120.0)  # Add timeout
             
             # Log the response status
             logger.info(f"Received response from aegnt with status {response.status_code}")

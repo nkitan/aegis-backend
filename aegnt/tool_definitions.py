@@ -108,8 +108,9 @@ def query_transactions(
     Helper function to retrieve transaction data from the backend database.
     Used internally by other analysis functions.
     """
-    # Default to last 30 days if no dates are provided
-    if not start_date and not end_date:
+    # Only apply default date range if BOTH start_date and end_date are None
+    # This allows analyze_financial_data to control the date range properly
+    if start_date is None and end_date is None:
         end_date_obj = datetime.now()
         start_date_obj = end_date_obj - timedelta(days=30)
         start_date = start_date_obj.strftime('%Y-%m-%d')
@@ -194,6 +195,50 @@ def analyze_financial_data(
     Returns:
         Complete analysis with transaction data, insights, and structured data for visualization
     """
+    
+    # Smart date range detection based on query text
+    query_lower = query_text.lower()
+    
+    # For broad analytical queries, use a wider date range to capture all available data
+    if any(phrase in query_lower for phrase in [
+        "trends", "category", "categories", "most", "total", "all time", 
+        "overall", "spending patterns", "store", "stores", "breakdown",
+        "summary", "analysis", "compare", "comparison"
+    ]):
+        # Use a very wide date range to capture all historical data
+        if not start_date and not end_date:
+            start_date = "2015-01-01"  # Go back far enough to capture all data
+            end_date = datetime.now().strftime('%Y-%m-%d')
+    
+    # Handle specific time period queries
+    elif "last month" in query_lower:
+        end_date_obj = datetime.now().replace(day=1) - timedelta(days=1)  # Last day of previous month
+        start_date_obj = end_date_obj.replace(day=1)  # First day of previous month
+        start_date = start_date_obj.strftime('%Y-%m-%d')
+        end_date = end_date_obj.strftime('%Y-%m-%d')
+    elif "this month" in query_lower:
+        start_date_obj = datetime.now().replace(day=1)
+        end_date_obj = datetime.now()
+        start_date = start_date_obj.strftime('%Y-%m-%d')
+        end_date = end_date_obj.strftime('%Y-%m-%d')
+    elif any(year in query_lower for year in ["2017", "2018", "2019", "2020", "2021", "2022", "2023", "2024", "2025"]):
+        # Extract year from query
+        import re
+        year_match = re.search(r'\b(20\d{2})\b', query_lower)
+        if year_match:
+            year = year_match.group(1)
+            start_date = f"{year}-01-01"
+            end_date = f"{year}-12-31"
+    
+    # Smart category detection
+    if not category:
+        if any(word in query_lower for word in ["restaurant", "food", "dining", "eating"]):
+            category = "Restaurant"
+        elif any(word in query_lower for word in ["grocery", "groceries", "supermarket"]):
+            category = "Grocery Store"
+        elif any(word in query_lower for word in ["electronics", "tech", "mobile", "phone"]):
+            category = "Electronics Store"
+    
     # Step 1: Retrieve transaction data from database
     transactions = query_transactions(
         user_id=user_id,
@@ -248,30 +293,63 @@ def analyze_financial_data(
             "data_count": len(transactions)
         }
 
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    model = genai.GenerativeModel('gemini-2.5-pro')
     
-    # Enhanced prompt with strict instructions to only use provided data
+    # Enhanced prompt with better analysis instructions
     prompt = f"""You are a financial analyst. The user wants to know: '{query_text}'.
 
 STRICT INSTRUCTIONS:
 - ONLY analyze the provided transaction data below
 - DO NOT make up or estimate any numbers
-- If the data doesn't contain information to answer the question, say so clearly
 - Calculate exact amounts from the provided data
 - Always specify the currency and time period of the data you're analyzing
 - Provide specific transaction details when relevant
+- For "most" queries (like "what store did I spend the most at"), analyze ALL transactions and find the actual maximum
+- For "trends" or "category" queries, group and analyze the data by categories
+- For "total" queries, sum up all relevant transactions
 
 Analyze the following ACTUAL transaction data (in JSON format): {json.dumps(transactions, indent=2)}
 
 Based ONLY on this real data, provide:
-1. A natural language answer that includes specific amounts, dates, and stores from the data
+1. A comprehensive natural language answer that directly addresses the user's question with specific amounts, dates, and details from the data
 2. Structured data for visualization (charts, graphs) based on the actual transactions
+
+For example:
+- If asked about "spending trends by category", group transactions by category and show totals
+- If asked "what store did I spend the most at", find the store with highest total spending
+- If asked about a specific time period, only include transactions from that period
+- Always include actual numbers, dates, and store names from the data
 
 Respond with a JSON object containing 'natural_language_answer' and 'structured_data'."""
 
     try:
         response = model.generate_content(prompt)
-        analysis_result = json.loads(response.text)
+        
+        # Clean up the response text to ensure it's valid JSON
+        response_text = response.text.strip()
+        
+        # Try to find JSON content if the response has extra text
+        if not response_text.startswith('{'):
+            # Look for JSON content in the response
+            import re
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if json_match:
+                response_text = json_match.group(0)
+            else:
+                # If no JSON found, create a fallback response
+                response_text = json.dumps({
+                    "natural_language_answer": f"I found {len(transactions)} transactions from {start_date} to {end_date}, but couldn't parse the AI analysis. Here's a summary of your data.",
+                    "structured_data": {"transaction_count": len(transactions)}
+                })
+        
+        try:
+            analysis_result = json.loads(response_text)
+        except json.JSONDecodeError:
+            # Fallback if JSON parsing still fails
+            analysis_result = {
+                "natural_language_answer": f"I found {len(transactions)} transactions but encountered an issue parsing the detailed analysis. The data spans from {start_date} to {end_date}.",
+                "structured_data": {"transaction_count": len(transactions)}
+            }
         
         # Step 4: Return combined result with actual data
         return {
@@ -299,8 +377,8 @@ Respond with a JSON object containing 'natural_language_answer' and 'structured_
             "error": f"Analysis error: {e}",
             "transactions": transactions,
             "analysis": {
-                "natural_language_answer": f"I found {len(transactions)} transactions but couldn't complete the AI analysis due to a technical error.",
-                "structured_data": {}
+                "natural_language_answer": f"I found {len(transactions)} transactions from {transactions[0].get('transaction_date', 'N/A') if transactions else 'N/A'} to {transactions[-1].get('transaction_date', 'N/A') if transactions else 'N/A'}, but couldn't complete the AI analysis due to a technical error.",
+                "structured_data": {"transaction_count": len(transactions)}
             },
             "query": query_text,
             "data_count": len(transactions)
@@ -321,7 +399,7 @@ def summarize_transactions(transactions: list, query_text: str) -> dict:
     if not GEMINI_API_KEY:
         return {"error": "GEMINI_API_KEY is not configured."}
 
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    model = genai.GenerativeModel('gemini-2.5-pro')
     prompt = f"You are a financial analyst. The user wants to know: '{query_text}'.                Analyze the following transaction data (in JSON format): {json.dumps(transactions)}.                Provide a natural language answer summarizing the relevant information                and a structured data object for charting. For example, if the user asks to compare                spending in May and June, you should compare the provided transactions for each                month and then compare the results. Respond with a JSON object containing                'natural_language_answer' and 'structured_data'."
 
     try:
