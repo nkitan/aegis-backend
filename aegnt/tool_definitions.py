@@ -8,14 +8,60 @@ services as required.
 
 import httpx
 import json
+import re
+import base64
 from datetime import datetime, timedelta
 import google.generativeai as genai
 from config import BACKEND_API_BASE_URL, GEMINI_API_KEY, BACKEND_API_TOKEN
 from typing import Optional, List, Dict, Any
+import random
 
 # Configure the Gemini API key
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
+
+def get_basic_financial_insight() -> dict:
+    """
+    Provides basic financial insights and tips when transaction data is not available.
+    """
+    insights = [
+        {
+            "insight_message": "💡 Track your daily coffee expenses - they can add up to significant monthly savings!",
+            "insight_type": "spending_tip",
+            "details": {"tip": "Small daily expenses like coffee, snacks, or transportation can accumulate to substantial amounts. Try tracking them for a week to see the pattern."},
+            "action_recommended": "Use the receipt scanner to track your small daily purchases for better financial awareness."
+        },
+        {
+            "insight_message": "🎯 Try the 50/30/20 rule: 50% needs, 30% wants, 20% savings and debt repayment.",
+            "insight_type": "budgeting_tip",
+            "details": {"tip": "This budgeting rule helps maintain a balanced financial life while ensuring you save for the future."},
+            "action_recommended": "Upload some receipts to analyze your current spending patterns against this rule."
+        },
+        {
+            "insight_message": "💳 Review your subscriptions monthly - you might find services you no longer use.",
+            "insight_type": "subscription_tip",
+            "details": {"tip": "Many people pay for subscriptions they've forgotten about. A monthly review can help you save significantly."},
+            "action_recommended": "Check your bank statements for recurring charges and cancel unused subscriptions."
+        },
+        {
+            "insight_message": "🛒 Create a shopping list before grocery trips to avoid impulse purchases.",
+            "insight_type": "shopping_tip",
+            "details": {"tip": "Planning your purchases helps you stick to your budget and reduces food waste."},
+            "action_recommended": "Try using the recipe suggestions feature to plan meals and create efficient shopping lists."
+        },
+        {
+            "insight_message": "📊 Start tracking your expenses today - awareness is the first step to better finances.",
+            "insight_type": "tracking_tip",
+            "details": {"tip": "You can't manage what you don't measure. Start with small steps to track your spending."},
+            "action_recommended": "Upload a few receipts using the receipt scanner to get started with expense tracking."
+        }
+    ]
+    
+    selected_insight = random.choice(insights)
+    return {
+        "insight_found": True,
+        **selected_insight
+    }
 
 def process_receipt(file_data_base64: str, file_type: str, user_id: str, id_token: str) -> dict:
     """
@@ -93,16 +139,16 @@ def create_calendar_event(event_data: dict, id_token: str) -> dict:
 def query_transactions(
     user_id: str,
     id_token: str,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    category: Optional[str] = None,
-    store_name: Optional[str] = None,
-    item_name: Optional[str] = None,
-    currency: Optional[str] = None,
-    city: Optional[str] = None,
-    state: Optional[str] = None,
-    country: Optional[str] = None,
-    postal_code: Optional[str] = None,
+    start_date: Optional[str],
+    end_date: Optional[str],
+    category: Optional[str],
+    store_name: Optional[str],
+    item_name: Optional[str],
+    currency: Optional[str],
+    city: Optional[str],
+    state: Optional[str],
+    country: Optional[str],
+    postal_code: Optional[str],
 ) -> list:
     """
     Helper function to retrieve transaction data from the backend database.
@@ -159,16 +205,16 @@ def analyze_financial_data(
     user_id: str,
     id_token: str,
     query_text: str,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    category: Optional[str] = None,
-    store_name: Optional[str] = None,
-    item_name: Optional[str] = None,
-    currency: Optional[str] = None,
-    city: Optional[str] = None,
-    state: Optional[str] = None,
-    country: Optional[str] = None,
-    postal_code: Optional[str] = None,
+    start_date: Optional[str],
+    end_date: Optional[str],
+    category: Optional[str],
+    store_name: Optional[str],
+    item_name: Optional[str],
+    currency: Optional[str],
+    city: Optional[str],
+    state: Optional[str],
+    country: Optional[str],
+    postal_code: Optional[str],
 ) -> dict:
     """
     Complete end-to-end financial analysis that retrieves data from database and provides insights.
@@ -412,7 +458,7 @@ def summarize_transactions(transactions: list, query_text: str) -> dict:
 
 from config import SPOONACULAR_API_KEY
 
-def get_virtual_pantry(user_id: str, id_token: str, days_back: int = 30) -> list[str]:
+def get_virtual_pantry(user_id: str, id_token: str, days_back: int) -> list[str]:
     """
     Automatically extracts pantry items from recent grocery and food purchases.
     
@@ -428,43 +474,93 @@ def get_virtual_pantry(user_id: str, id_token: str, days_back: int = 30) -> list
     end_date = datetime.now().strftime('%Y-%m-%d')
     start_date = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')
     
-    # Query for grocery and food-related purchases
-    grocery_transactions = query_transactions(
-        user_id=user_id,
-        id_token=id_token,
-        start_date=start_date,
-        end_date=end_date,
-        category="Grocery Store"
-    )
-    
-    # Also get restaurant purchases for potential ingredients
-    food_transactions = query_transactions(
-        user_id=user_id,
-        id_token=id_token,
-        start_date=start_date,
-        end_date=end_date,
-        category="Restaurant"
-    )
-    
     pantry_items = set()
     
-    # Extract ingredients from grocery transactions
-    if grocery_transactions and not (len(grocery_transactions) > 0 and "error" in grocery_transactions[0]):
-        for transaction in grocery_transactions:
-            items = transaction.get("items", [])
-            for item in items:
-                item_name = item.get("name", "").lower()
-                # Extract common pantry ingredients from item names
-                pantry_items.update(extract_ingredients_from_item_name(item_name))
+    # Try to get grocery transactions first
+    try:
+        grocery_transactions = query_transactions(
+            user_id=user_id,
+            id_token=id_token,
+            start_date=start_date,
+            end_date=end_date,
+            category="Grocery Store",
+            store_name=None,
+            item_name=None,
+            currency=None,
+            city=None,
+            state=None,
+            country=None,
+            postal_code=None
+        )
+        
+        # Extract ingredients from grocery transactions
+        if grocery_transactions and not (len(grocery_transactions) > 0 and "error" in grocery_transactions[0]):
+            for transaction in grocery_transactions:
+                items = transaction.get("items", [])
+                for item in items:
+                    item_name = item.get("name", "").lower()
+                    # Extract common pantry ingredients from item names
+                    pantry_items.update(extract_ingredients_from_item_name(item_name))
+    except Exception as e:
+        print(f"Error fetching grocery transactions: {e}")
     
-    # Extract ingredients from restaurant transactions (for inspiration)
-    if food_transactions and not (len(food_transactions) > 0 and "error" in food_transactions[0]):
-        for transaction in food_transactions:
-            items = transaction.get("items", [])
-            for item in items:
-                item_name = item.get("name", "").lower()
-                # Extract common ingredients from restaurant dishes
-                pantry_items.update(extract_ingredients_from_item_name(item_name))
+    # Also try to get all transactions and filter for food-related ones
+    try:
+        all_transactions = query_transactions(
+            user_id=user_id,
+            id_token=id_token,
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        if all_transactions and not (len(all_transactions) > 0 and "error" in all_transactions[0]):
+            for transaction in all_transactions:
+                # Look for food-related categories and store names
+                category = transaction.get("category", "").lower()
+                store_name = transaction.get("store_name", "").lower()
+                
+                food_related_keywords = [
+                    "grocery", "supermarket", "mart", "market", "food", "restaurant", 
+                    "cafe", "bakery", "deli", "butcher", "fish", "vegetable", "fruit"
+                ]
+                
+                is_food_related = any(keyword in category for keyword in food_related_keywords) or \
+                                any(keyword in store_name for keyword in food_related_keywords)
+                
+                if is_food_related:
+                    items = transaction.get("items", [])
+                    for item in items:
+                        item_name = item.get("name", "").lower()
+                        pantry_items.update(extract_ingredients_from_item_name(item_name))
+    except Exception as e:
+        print(f"Error fetching all transactions: {e}")
+    
+    # If still no pantry items found, try restaurant transactions for inspiration
+    if not pantry_items:
+        try:
+            food_transactions = query_transactions(
+                user_id=user_id,
+                id_token=id_token,
+                start_date=start_date,
+                end_date=end_date,
+                category="Restaurant"
+            )
+            
+            # Extract ingredients from restaurant transactions (for inspiration)
+            if food_transactions and not (len(food_transactions) > 0 and "error" in food_transactions[0]):
+                for transaction in food_transactions:
+                    items = transaction.get("items", [])
+                    for item in items:
+                        item_name = item.get("name", "").lower()
+                        # Extract common ingredients from restaurant dishes
+                        pantry_items.update(extract_ingredients_from_item_name(item_name))
+        except Exception as e:
+            print(f"Error fetching restaurant transactions: {e}")
+    
+    # Add some common pantry staples if we found any ingredients
+    if pantry_items:
+        common_staples = ["salt", "oil", "rice", "flour", "onion", "garlic"]
+        pantry_items.update(common_staples)
     
     return list(pantry_items)
 
@@ -535,7 +631,7 @@ def extract_ingredients_from_item_name(item_name: str) -> set[str]:
     return ingredients
 
 
-def generate_recipe_suggestion(user_id: str, id_token: str, user_preferences: Optional[str] = None, pantry_items: Optional[list[str]] = None) -> dict:
+def generate_recipe_suggestion(user_id: str, id_token: str, user_preferences: Optional[str], pantry_items: Optional[list[str]]) -> dict:
     """
     Provides recipe ideas based on the items currently available in the user's
     Virtual Pantry (automatically detected from recent purchases).
@@ -549,12 +645,10 @@ def generate_recipe_suggestion(user_id: str, id_token: str, user_preferences: Op
     Returns:
         A dictionary containing recipe suggestions and pantry items used
     """
-    if not SPOONACULAR_API_KEY:
-        return {"error": "SPOONACULAR_API_KEY is not configured."}
     
     # Auto-detect pantry items from recent purchases if not provided
     if not pantry_items:
-        pantry_items = get_virtual_pantry(user_id, id_token)
+        pantry_items = get_virtual_pantry(user_id, id_token, 30)
         
     if not pantry_items:
         return {
@@ -563,19 +657,24 @@ def generate_recipe_suggestion(user_id: str, id_token: str, user_preferences: Op
             "pantry_items": []
         }
 
-    ingredients_str = ','.join(pantry_items)
+    # Use Gemini AI for recipe suggestions if Spoonacular API is not available
+    if not SPOONACULAR_API_KEY:
+        return generate_ai_recipe_suggestions(pantry_items, user_preferences)
     
-    # Prioritize using as many given ingredients as possible (ranking=1)
-    # and ignore common pantry items like water, salt, etc.
-    params = {
-        "ingredients": ingredients_str,
-        "number": 5,  # Return up to 5 recipes
-        "ranking": 1,
-        "ignorePantry": True,
-        "apiKey": SPOONACULAR_API_KEY
-    }
-
+    # Try Spoonacular API first, fall back to AI if it fails
     try:
+        ingredients_str = ','.join(pantry_items)
+        
+        # Prioritize using as many given ingredients as possible (ranking=1)
+        # and ignore common pantry items like water, salt, etc.
+        params = {
+            "ingredients": ingredients_str,
+            "number": 5,  # Return up to 5 recipes
+            "ranking": 1,
+            "ignorePantry": True,
+            "apiKey": SPOONACULAR_API_KEY
+        }
+
         response = httpx.get("https://api.spoonacular.com/recipes/findByIngredients", params=params)
         response.raise_for_status()  # Raise an exception for HTTP errors
         recipes_data = response.json()
@@ -601,12 +700,58 @@ def generate_recipe_suggestion(user_id: str, id_token: str, user_preferences: Op
             "pantry_items": pantry_items,
             "message": f"Found {len(pantry_items)} ingredients from your recent grocery purchases: {', '.join(pantry_items)}"
         }
-    except httpx.HTTPStatusError as e:
-        return {"error": f"HTTP error occurred: {e.response.status_code} - {e.response.text}"}
-    except httpx.RequestError as e:
-        return {"error": f"An error occurred while requesting the Spoonacular API: {e}"}
     except Exception as e:
-        return {"error": f"An unexpected error occurred: {e}"}
+        # Fall back to AI-generated recipes if Spoonacular fails
+        print(f"Spoonacular API failed, falling back to AI: {e}")
+        return generate_ai_recipe_suggestions(pantry_items, user_preferences)
+
+
+def generate_ai_recipe_suggestions(pantry_items: list[str], user_preferences: Optional[str]) -> dict:
+    """
+    Generate recipe suggestions using Gemini AI when Spoonacular API is not available.
+    """
+    if not GEMINI_API_KEY:
+        return {
+            "error": "Both Spoonacular and Gemini APIs are not configured",
+            "message": "I'm sorry, but I wasn't able to retrieve your pantry items to suggest a recipe at this moment. Please try again later.",
+            "pantry_items": pantry_items
+        }
+    
+    try:
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        
+        ingredients_text = ", ".join(pantry_items)
+        preferences_text = f" with preferences: {user_preferences}" if user_preferences else ""
+        
+        prompt = f"""You are a professional chef and recipe developer. Based on these ingredients from the user's recent grocery purchases: {ingredients_text}, suggest 3-5 delicious and practical recipes{preferences_text}.
+
+For each recipe, provide:
+1. Recipe name
+2. A brief description
+3. Which ingredients from their pantry will be used
+4. Any additional common ingredients they might need
+5. Simple cooking instructions (2-3 sentences)
+
+Make the recipes practical and achievable for home cooking. Focus on using as many of their available ingredients as possible.
+
+Format your response clearly and engagingly."""
+
+        response = model.generate_content(prompt)
+        
+        return {
+            "recipes": [response.text],
+            "count": 1,
+            "pantry_items": pantry_items,
+            "message": f"Found {len(pantry_items)} ingredients from your recent grocery purchases: {ingredients_text}",
+            "source": "AI-generated (Gemini)"
+        }
+        
+    except Exception as e:
+        return {
+            "error": f"Failed to generate AI recipe suggestions: {str(e)}",
+            "message": "I'm sorry, but I wasn't able to retrieve your pantry items to suggest a recipe at this moment. Please try again later.",
+            "pantry_items": pantry_items
+        }
 
 
 def run_proactive_analysis(user_id: str, id_token: str) -> dict:
@@ -618,29 +763,153 @@ def run_proactive_analysis(user_id: str, id_token: str) -> dict:
     if not GEMINI_API_KEY:
         return {"insight_found": False, "insight_message": "GEMINI_API_KEY is not configured."}
 
-    # Get current month transactions
-    end_date = datetime.now().strftime('%Y-%m-%d')
-    start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
-    recent_transactions = query_transactions(user_id, id_token, start_date=start_date, end_date=end_date)
+    # Try to get transaction data using a smart approach - start recent and expand if needed
+    recent_transactions = None
+    previous_transactions = None
+    date_ranges_tried = []
     
-    # Get previous month for comparison
-    prev_end_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
-    prev_start_date = (datetime.now() - timedelta(days=60)).strftime('%Y-%m-%d')
-    previous_transactions = query_transactions(user_id, id_token, start_date=prev_start_date, end_date=prev_end_date)
+    # Define multiple date ranges to try, starting with most recent
+    date_ranges = [
+        (30, "last 30 days"),
+        (90, "last 3 months"), 
+        (180, "last 6 months"),
+        (365, "last year"),
+        (730, "last 2 years")
+    ]
+    
+    try:
+        # Try different date ranges until we find transaction data
+        for days_back, period_description in date_ranges:
+            end_date = datetime.now().strftime('%Y-%m-%d')
+            start_date = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')
+            
+            try:
+                print(f"Attempting to query transactions for {period_description} from {start_date} to {end_date}")
+                
+                # Add timeout protection for the query_transactions call
+                with httpx.Client(timeout=10.0) as temp_client:
+                    # Construct the URL directly to test
+                    test_url = f"{BACKEND_API_BASE_URL}/transactions"
+                    test_params = {"start_date": start_date, "end_date": end_date}
+                    test_headers = {'Authorization': f'Bearer {id_token}'}
+                    
+                    try:
+                        test_response = temp_client.get(test_url, params=test_params, headers=test_headers)
+                        if test_response.status_code == 200:
+                            transactions = test_response.json()
+                        else:
+                            print(f"HTTP error {test_response.status_code}: {test_response.text}")
+                            transactions = [{"error": f"HTTP {test_response.status_code}: {test_response.text}"}]
+                    except httpx.TimeoutException:
+                        print(f"Timeout querying transactions for {period_description}")
+                        transactions = [{"error": f"Timeout querying transactions for {period_description}"}]
+                    except Exception as query_error:
+                        print(f"Error in direct transaction query: {query_error}")
+                        transactions = [{"error": f"Query error: {str(query_error)}"}]
+                
+                date_ranges_tried.append(f"{period_description}: {len(transactions) if transactions and not isinstance(transactions, list) or not transactions or "error" not in str(transactions[0]) else 'error'} transactions")
+                
+                if transactions and len(transactions) > 0 and not "error" in str(transactions[0]):
+                    recent_transactions = transactions
+                    # For comparison, try to get data from an earlier period
+                    prev_end_date = start_date
+                    prev_start_date = (datetime.now() - timedelta(days=days_back * 2)).strftime('%Y-%m-%d')
+                    try:
+                        # Try to get previous transactions with timeout protection too
+                        with httpx.Client(timeout=5.0) as prev_client:
+                            prev_url = f"{BACKEND_API_BASE_URL}/transactions"
+                            prev_params = {"start_date": prev_start_date, "end_date": prev_end_date}
+                            prev_headers = {'Authorization': f'Bearer {id_token}'}
+                            prev_response = prev_client.get(prev_url, params=prev_params, headers=prev_headers)
+                            if prev_response.status_code == 200:
+                                previous_transactions = prev_response.json()
+                            else:
+                                previous_transactions = []
+                    except Exception as prev_error:
+                        print(f"Could not get previous transactions: {prev_error}")
+                        previous_transactions = []
+                    
+                    print(f"Found {len(recent_transactions)} transactions in {period_description}")
+                    break
+                else:
+                    print(f"No valid transactions found for {period_description}: {transactions[0] if transactions else 'No data'}")
+            except Exception as e:
+                print(f"Error querying {period_description}: {e}")
+                date_ranges_tried.append(f"{period_description}: error - {str(e)}")
+                continue
+                
+    except Exception as e:
+        print(f"Error in transaction date range search: {e}")
+    
+    # If still no data, try using analyze_financial_data with a broad query
+    if not recent_transactions or len(recent_transactions) == 0:
+        try:
+            # Use analyze_financial_data with a very broad date range
+            analysis_result = analyze_financial_data(
+                user_id=user_id,
+                id_token=id_token,
+                query_text="Show me all my spending patterns and transaction history for analysis",
+                start_date="2020-01-01",  # Very broad range
+                end_date=datetime.now().strftime('%Y-%m-%d')
+            )
+            
+            if analysis_result and not analysis_result.get("error") and analysis_result.get("transactions"):
+                recent_transactions = analysis_result["transactions"]
+                analysis_text = analysis_result.get("analysis", {}).get("natural_language_answer", "")
+                
+                if analysis_text and len(recent_transactions) > 0:
+                    return {
+                        "insight_found": True,
+                        "insight_message": f"Based on your transaction history: {analysis_text[:120]}...",
+                        "insight_type": "historical_analysis",
+                        "details": {
+                            "analysis": analysis_text,
+                            "transaction_count": len(recent_transactions),
+                            "period": f"All available data ({len(recent_transactions)} transactions)"
+                        },
+                        "action_recommended": "Consider uploading more recent receipts to get up-to-date spending insights."
+                    }
+                    
+        except Exception as e:
+            print(f"Error using analyze_financial_data fallback: {e}")
     
     # Validate transaction data
-    if not recent_transactions or (isinstance(recent_transactions, list) and len(recent_transactions) > 0 and "error" in recent_transactions[0]):
-        return {"insight_found": False, "insight_message": "Could not retrieve recent transactions for analysis."}
+    if not recent_transactions or len(recent_transactions) == 0:
+        # If we can't get any transaction data, provide basic financial insights
+        basic_insight = get_basic_financial_insight()
+        basic_insight["insight_message"] = "I couldn't find transaction data to analyze, but here's a helpful financial tip: " + basic_insight["insight_message"]
+        basic_insight["action_recommended"] = "Upload some receipts using the receipt scanner to get personalized insights based on your spending data."
+        return basic_insight
     
     if len(recent_transactions) < 3:
-        return {"insight_found": False, "insight_message": "Insufficient transaction data for meaningful analysis."}
+        # If we have very little transaction data, still provide helpful insights with the data we have
+        basic_insight = get_basic_financial_insight()
+        basic_insight["insight_message"] = f"I found {len(recent_transactions)} transaction(s) but need more for detailed analysis. Here's a helpful tip: " + basic_insight["insight_message"]
+        basic_insight["action_recommended"] = "Upload more receipts to get detailed spending insights and trend analysis."
+        return basic_insight
 
-    # Prepare analysis data
+    # If we have good transaction data, proceed with detailed analysis
+    print(f"Proceeding with analysis of {len(recent_transactions)} transactions")
+    
+    # Determine the period we're analyzing based on which date range worked
+    analysis_period = "recent data"
+    start_date_for_analysis = None
+    end_date_for_analysis = None
+    
+    # Find the actual date range of our transactions
+    if recent_transactions:
+        transaction_dates = [t.get('transaction_date', '') for t in recent_transactions if t.get('transaction_date')]
+        if transaction_dates:
+            sorted_dates = sorted(transaction_dates)
+            start_date_for_analysis = sorted_dates[0][:10]  # YYYY-MM-DD format
+            end_date_for_analysis = sorted_dates[-1][:10]
+            analysis_period = f"{start_date_for_analysis} to {end_date_for_analysis}"
+
+    # Prepare analysis data for detailed AI analysis
     analysis_data = {
         "recent_transactions": recent_transactions,
-        "previous_transactions": previous_transactions if previous_transactions and not (isinstance(previous_transactions, list) and len(previous_transactions) > 0 and "error" in previous_transactions[0]) else [],
-        "analysis_period": f"{start_date} to {end_date}",
-        "comparison_period": f"{prev_start_date} to {prev_end_date}" if previous_transactions else None
+        "previous_transactions": previous_transactions if previous_transactions and not (isinstance(previous_transactions, list) and len(previous_transactions) > 0 and "error" in str(previous_transactions[0])) else [],
+        "analysis_period": analysis_period
     }
 
     model = genai.GenerativeModel('gemini-2.5-flash')
@@ -649,8 +918,8 @@ def run_proactive_analysis(user_id: str, id_token: str) -> dict:
     prompt = f"""You are an expert financial analyst specializing in proactive spending insights.
 
 ANALYSIS DATA:
-Current Period ({start_date} to {end_date}): {json.dumps(recent_transactions, indent=2)}
-Previous Period ({prev_start_date} to {prev_end_date}): {json.dumps(analysis_data["previous_transactions"], indent=2)}
+Current Period ({analysis_period}): {json.dumps(recent_transactions, indent=2)}
+Previous Period Transactions: {json.dumps(analysis_data["previous_transactions"], indent=2)}
 
 ANALYSIS TASKS:
 1. **Subscription Analysis**: Look for recurring payments and identify any price increases
@@ -703,8 +972,11 @@ Only report ONE most significant insight. If no significant insights found, retu
         
         # Send notification if insight found
         if insight.get("insight_found", False):
-            notification_result = send_push_notification(user_id, insight.get("insight_message", "New financial insight available"), id_token)
-            insight["notification_sent"] = notification_result.get("success", False)
+            try:
+                notification_result = send_push_notification(user_id, insight.get("insight_message", "New financial insight available"), id_token)
+                insight["notification_sent"] = notification_result.get("success", False)
+            except:
+                insight["notification_sent"] = False
             
             # Add metadata
             insight["analysis_timestamp"] = datetime.now().isoformat()
@@ -783,7 +1055,7 @@ def _fallback_proactive_analysis(recent_transactions: list, previous_transaction
         return {"insight_found": False, "insight_message": f"Fallback analysis failed: {str(e)}"}
 
 
-def run_comprehensive_proactive_analysis(user_id: str, id_token: str, analysis_days: int = 90) -> dict:
+def run_comprehensive_proactive_analysis(user_id: str, id_token: str, analysis_days: int) -> dict:
     """
     Runs a comprehensive proactive analysis over a longer period to identify
     more complex patterns and trends.
@@ -1132,7 +1404,7 @@ def send_push_notification(user_id: str, message: str, id_token: str) -> dict:
             return {"error": f"An error occurred while requesting the backend: {e}"}
 
 
-def schedule_proactive_insights(user_id: str, id_token: str, frequency: str = "daily") -> dict:
+def schedule_proactive_insights(user_id: str, id_token: str, frequency: str) -> dict:
     """
     Schedules proactive insight analysis for a user.
     
@@ -1165,7 +1437,7 @@ def schedule_proactive_insights(user_id: str, id_token: str, frequency: str = "d
             return {"error": f"An error occurred while requesting the backend: {e}"}
 
 
-def get_user_insights_history(user_id: str, id_token: str, days_back: int = 30) -> dict:
+def get_user_insights_history(user_id: str, id_token: str, days_back: int) -> dict:
     """
     Retrieves the history of insights generated for a user.
     
@@ -1195,7 +1467,7 @@ def get_user_insights_history(user_id: str, id_token: str, days_back: int = 30) 
             return {"error": f"An error occurred while requesting the backend: {e}"}
 
 
-def run_batch_proactive_analysis(user_ids: list, batch_size: int = 10) -> dict:
+def run_batch_proactive_analysis(user_ids: list, batch_size: int) -> dict:
     """
     Runs proactive analysis for multiple users in batches.
     This would typically be called by a background scheduler.

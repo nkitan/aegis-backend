@@ -61,3 +61,37 @@ async def invoke_agent_endpoint(prompt: AegntPrompt, current_user: User = Depend
             status_code=500,
             detail="An unexpected error occurred while processing your request"
         )
+
+@router.post("/users/me/insights/proactive")
+async def get_proactive_insights(current_user: User = Depends(get_current_user)):
+    """
+    Generates proactive insights for the current user by calling the agent's proactive analysis.
+    This endpoint should be called by the backend scheduler or user interface, not directly by the agent.
+    """
+    try:
+        logger.info(f"Generating proactive insights for user {current_user.uid}")
+        
+        # Call the agent with a specific proactive insights prompt
+        response = await aegnt_service.invoke_agent(
+            current_user.uid, 
+            "Give me proactive insights about my spending patterns and financial behavior. Use the proactive analysis tool only.", 
+            current_user.id_token
+        )
+        
+        logger.info("Successfully received proactive insights from agent")
+        return response
+    except httpx.HTTPError as e:
+        logger.error(f"HTTP error communicating with Aegnt service for proactive insights: {str(e)}")
+        raise HTTPException(
+            status_code=503,
+            detail="Error communicating with Aegnt service. Please ensure the service is running."
+        )
+    except ValueError as e:
+        logger.error(f"Value error from Aegnt service for proactive insights: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error generating proactive insights: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred while generating proactive insights"
+        )

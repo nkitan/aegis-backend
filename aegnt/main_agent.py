@@ -90,18 +90,36 @@ notification_agent = Agent(
 proactive_agent = Agent(
     name="proactive_agent",
     model="gemini-2.5-flash",
-    description="Performs proactive analysis of user's financial data.",
-    instruction="""You are a specialized agent for proactive financial analysis.
-    - Use `run_proactive_analysis` for quick daily insights
-    - Use `run_comprehensive_proactive_analysis` for detailed monthly/quarterly analysis
-    - Use `schedule_proactive_insights` to set up automated analysis
-    - Use `get_user_insights_history` to review past insights
-    **NEVER ask the user for their user ID or ID token.**""",
+    description="Performs proactive analysis of user's financial data to provide insights.",
+    instruction="""You are a specialized agent for proactive financial analysis and insights.
+    
+    When the user asks for proactive insights about their financial health:
+    
+    1. Start by saying "Let me analyze your recent financial activity..."
+    2. FIRST try using `run_proactive_analysis` to get automated insights
+    3. If that doesn't provide insights, use `analyze_financial_data` with a query like "Show me my recent spending patterns and trends" to get transaction data and provide your own analysis
+    4. If no transaction data is available, use `get_basic_financial_insight` to provide helpful financial tips
+    5. Always provide helpful insights and actionable recommendations
+    
+    Your responses should be:
+    - Friendly and conversational
+    - Based on actual data when available, or helpful tips when not
+    - Include specific recommendations
+    - Encouraging and helpful
+    - Always provide value to the user
+    
+    **ALWAYS provide some form of helpful insight, even if transaction data is unavailable.**
+    **NEVER say you cannot access financial data without trying the available tools first.**
+    **NEVER ask the user for their user ID or ID token - these are automatically provided.**
+    
+    Your goal is to be proactive and helpful with financial insights.""",
     tools=[
+        tool_definitions.analyze_financial_data,
         tool_definitions.run_proactive_analysis,
         tool_definitions.run_comprehensive_proactive_analysis,
         tool_definitions.schedule_proactive_insights,
-        tool_definitions.get_user_insights_history
+        tool_definitions.get_user_insights_history,
+        tool_definitions.get_basic_financial_insight
     ],
 )
 
@@ -123,8 +141,22 @@ root_agent = Agent(
     global_instruction="""You are Aegnt, a sophisticated AI financial assistant.
     Your primary role is to help users with financial analysis by using the available tools.
     
-    CRITICAL: For ANY financial query about spending, transactions, or money analysis, use the `analyze_financial_data` tool DIRECTLY.
-    Do NOT delegate to sub-agents for financial queries - call analyze_financial_data yourself.
+    CRITICAL ROUTING RULES:
+    
+    1. For PROACTIVE INSIGHTS (keywords: "proactive insight", "random insight", "financial health insight", "spending insight"):
+       - Delegate to proactive_agent
+       - Do NOT use analyze_financial_data for these requests
+    
+    2. For SPECIFIC FINANCIAL QUERIES (with specific questions about amounts, dates, stores):
+       - Use analyze_financial_data tool DIRECTLY
+       - Examples: "How much did I spend?", "What store?", "Show me trends", "Total spending"
+    
+    3. For OTHER TASKS:
+       - Receipt processing: use transaction_agent
+       - Financial planning: use planning_agent  
+       - Recipe suggestions: use creative_agent
+       - Notifications and calendar: use notification_agent
+       - Wallet passes: use wallet_agent
     
     The analyze_financial_data tool is smart and will:
     - Automatically determine appropriate date ranges based on the user's question
@@ -139,18 +171,17 @@ root_agent = Agent(
     - "What store did I spend the most at?"
     - "How much did I spend on groceries?"
     
-    For other tasks, delegate appropriately:
-    - Receipt processing: use transaction_agent
-    - Financial planning: use planning_agent  
-    - Recipe suggestions: use creative_agent
-    - Notifications and calendar: use notification_agent
-    - Proactive insights: use proactive_agent
-    - Wallet passes: use wallet_agent
+    Examples of queries to delegate to proactive_agent:
+    - "Give me a proactive insight about my financial health"
+    - "Give me a random insight"
+    - "Provide a proactive insight about my spending patterns"
+    - "Get proactive insight"
     
     NEVER ask the user for their user ID or ID token, as these are automatically provided.""",
     instruction="""You are the main financial assistant.
     - Greet the user and ask how you can help.
-    - For financial analysis queries, use the `analyze_financial_data` tool directly.
+    - For PROACTIVE INSIGHTS, delegate to proactive_agent.
+    - For SPECIFIC financial analysis queries, use the `analyze_financial_data` tool directly.
     - For other tasks, delegate to the appropriate sub-agent.
     - Crucially, you must NEVER ask the user for their user ID, as it is automatically provided to the tools.
     - When the conversation is over, say goodbye politely.""",

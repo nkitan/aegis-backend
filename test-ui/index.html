@@ -248,7 +248,7 @@
         <div class="config-section">
             <h4>⚙️ API Configuration</h4>
             <input type="text" id="backendUrl" class="config-input" placeholder="Backend URL (e.g., http://localhost:8000)" value="http://localhost:8000">
-            <input type="text" id="authToken" class="config-input" placeholder="Auth Token (e.g., test_token)" value="test_token">
+            <input type="text" id="authToken" class="config-input" placeholder="Auth Token (hackathon_bypass_token for testing)" value="hackathon_bypass_token">
             <input type="text" id="userId" class="config-input" placeholder="User ID (e.g., vg21F4xzYJdg5yikFrEDAotLqli1)" value="vg21F4xzYJdg5yikFrEDAotLqli1">
         </div>
 
@@ -417,17 +417,88 @@
                         'Authorization': `Bearer ${getAuthToken()}`
                     },
                     body: JSON.stringify({
-                        prompt: "Give me a proactive insight about my financial health and spending patterns"
+                        prompt: "Give me a proactive insight about my financial health and spending patterns. Please analyze my recent transactions and provide actionable recommendations."
                     })
                 });
 
                 const data = await response.json();
                 
-                if (data.response) {
-                    insightContent.textContent = data.response;
+                // Extract only the insights from the agent response
+                let insightText = '';
+                
+                if (data.parts) {
+                    // New format - extract text content and function call results
+                    for (const part of data.parts) {
+                        if (part.type === 'text') {
+                            insightText += part.content + '\n';
+                        } else if (part.type === 'function_call') {
+                            // Check if we have actual function execution results
+                            if (part.content) {
+                                // Handle proactive analysis function call results
+                                if (part.name === 'run_proactive_analysis' && part.content.insight_found !== undefined) {
+                                    if (part.content.insight_found) {
+                                        if (part.content.insight_message) {
+                                            insightText += '💡 ' + part.content.insight_message + '\n\n';
+                                        }
+                                        if (part.content.details) {
+                                            insightText += 'Details: ' + JSON.stringify(part.content.details, null, 2) + '\n\n';
+                                        }
+                                        if (part.content.action_recommended) {
+                                            insightText += '🎯 Recommended Action: ' + part.content.action_recommended + '\n';
+                                        }
+                                    } else if (part.content.insight_message) {
+                                        insightText += part.content.insight_message + '\n';
+                                    }
+                                }
+                                // Handle financial analysis results
+                                else if (part.content.analysis && part.content.analysis.natural_language_answer) {
+                                    insightText += part.content.analysis.natural_language_answer + '\n';
+                                }
+                                // Handle any other structured content
+                                else if (typeof part.content === 'object') {
+                                    // Try to extract meaningful text from object
+                                    for (const key of ['message', 'result', 'insight', 'response']) {
+                                        if (part.content[key]) {
+                                            insightText += part.content[key] + '\n';
+                                            break;
+                                        }
+                                    }
+                                }
+                                // Handle direct string content
+                                else if (typeof part.content === 'string') {
+                                    insightText += part.content + '\n';
+                                }
+                            }
+                            // If no content but we have function call info, show that we're processing
+                            else if (part.name) {
+                                insightText += `Processing ${part.name}...\n`;
+                            }
+                        }
+                    }
+                } else if (data.response) {
+                    // Legacy format
+                    insightText = data.response;
+                }
+
+                if (insightText.trim()) {
+                    insightContent.textContent = insightText.trim();
                     insightCard.style.display = 'block';
                 } else {
-                    responseDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    // Show detailed debugging information
+                    let debugInfo = `No insights extracted. Debugging info:\n\n`;
+                    debugInfo += `Response structure: ${JSON.stringify(data, null, 2)}\n\n`;
+                    
+                    if (data.parts) {
+                        debugInfo += `Found ${data.parts.length} parts:\n`;
+                        data.parts.forEach((part, index) => {
+                            debugInfo += `Part ${index}: type=${part.type}\n`;
+                            if (part.content) {
+                                debugInfo += `Content keys: ${Object.keys(part.content).join(', ')}\n`;
+                            }
+                        });
+                    }
+                    
+                    responseDiv.innerHTML = `<pre>${debugInfo}</pre>`;
                     responseDiv.style.display = 'block';
                 }
 
@@ -466,7 +537,32 @@
                 });
 
                 const data = await response.json();
-                responseDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                
+                // Extract only the insights from the agent response
+                let insightText = '';
+                
+                if (data.parts) {
+                    // New format - extract text content and analysis
+                    for (const part of data.parts) {
+                        if (part.type === 'text') {
+                            insightText += part.content + '\n';
+                        } else if (part.type === 'function_call' && part.content && part.content.analysis) {
+                            // Extract natural language answer from function call results
+                            if (part.content.analysis.natural_language_answer) {
+                                insightText += part.content.analysis.natural_language_answer + '\n';
+                            }
+                        }
+                    }
+                } else if (data.response) {
+                    // Legacy format
+                    insightText = data.response;
+                }
+
+                if (insightText.trim()) {
+                    responseDiv.innerHTML = `<pre style="white-space: pre-wrap; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 14px; line-height: 1.6;">${insightText.trim()}</pre>`;
+                } else {
+                    responseDiv.innerHTML = `<pre>No insights available. Raw response: ${JSON.stringify(data, null, 2)}</pre>`;
+                }
                 responseDiv.style.display = 'block';
 
             } catch (error) {
@@ -490,10 +586,11 @@
             responseDiv.style.display = 'none';
 
             try {
-                let prompt = "What can I cook with the ingredients from my recent grocery purchases?";
+                let prompt = "I'd like recipe suggestions based on ingredients from my recent grocery purchases.";
                 if (preferences) {
-                    prompt += ` I prefer ${preferences}.`;
+                    prompt += ` My dietary preferences are: ${preferences}.`;
                 }
+                prompt += " Please suggest some delicious recipes I can make with what I have.";
 
                 const response = await fetch(`${getBackendUrl()}/api/v1/users/me/agent/invoke`, {
                     method: 'POST',
@@ -507,7 +604,39 @@
                 });
 
                 const data = await response.json();
-                responseDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                
+                // Extract only the insights from the agent response
+                let insightText = '';
+                
+                if (data.parts) {
+                    // New format - extract text content and analysis
+                    for (const part of data.parts) {
+                        if (part.type === 'text') {
+                            insightText += part.content + '\n';
+                        } else if (part.type === 'function_call' && part.content) {
+                            // Extract recipe suggestions from function call results
+                            if (part.content.recipes) {
+                                if (Array.isArray(part.content.recipes)) {
+                                    insightText += part.content.recipes.join('\n\n') + '\n';
+                                } else {
+                                    insightText += part.content.recipes + '\n';
+                                }
+                            }
+                            if (part.content.message) {
+                                insightText += '\n' + part.content.message + '\n';
+                            }
+                        }
+                    }
+                } else if (data.response) {
+                    // Legacy format
+                    insightText = data.response;
+                }
+
+                if (insightText.trim()) {
+                    responseDiv.innerHTML = `<pre style="white-space: pre-wrap; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 14px; line-height: 1.6;">${insightText.trim()}</pre>`;
+                } else {
+                    responseDiv.innerHTML = `<pre>No recipe suggestions available. Please make sure you have some grocery receipts uploaded. Raw response: ${JSON.stringify(data, null, 2)}</pre>`;
+                }
                 responseDiv.style.display = 'block';
 
             } catch (error) {
@@ -525,7 +654,7 @@
         }
 
         function getAuthToken() {
-            return document.getElementById('authToken').value || 'test_token';
+            return document.getElementById('authToken').value || 'hackathon_bypass_token';
         }
 
         function getUserId() {
