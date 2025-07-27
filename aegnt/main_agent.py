@@ -1,5 +1,5 @@
 """
-Main entry point for the Aegis Agent (Aegnt).
+Main entry point for the Aegis Financial Agent (Aegnt).
 
 This script defines the main agent, registers the available tools, and starts
 the agent's conversational loop. It serves as the primary execution file for
@@ -24,10 +24,18 @@ transaction_agent = Agent(
     model="gemini-2.5-flash",
     description="Handles processing and querying of financial transactions with analysis.",
     instruction="""You are a specialized agent for handling financial transactions and analysis.
-    - For all transaction analysis queries, use `analyze_financial_data` which retrieves data from the database AND provides insights in one step.
-    - Use `process_receipt` to process new receipts.
-    - The `analyze_financial_data` function combines data retrieval and AI analysis, so you don't need separate steps.
-    - Crucially, you must NEVER ask the user for their user ID or ID token, as these are automatically provided to the tools.""",
+    
+    CRITICAL INSTRUCTIONS:
+    - ALWAYS use `analyze_financial_data` for any financial questions about spending, transactions, or money
+    - This function retrieves REAL data from the user's database and provides AI analysis
+    - NEVER make up numbers or provide generic responses
+    - When the user asks about spending (groceries, restaurants, etc.), determine appropriate date ranges and categories
+    - For "last month" queries, calculate the actual previous month dates
+    - For category-specific queries, use the category parameter
+    - Use `process_receipt` only for processing new receipts
+    - Present the analysis results clearly, mentioning specific amounts, dates, and stores from the real data
+    - If no data is found, explain that clearly rather than making up answers
+    - You must NEVER ask the user for their user ID or ID token, as these are automatically provided to the tools.""",
     tools=[
         tool_definitions.process_receipt,
         tool_definitions.analyze_financial_data,

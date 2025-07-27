@@ -173,7 +173,8 @@ def analyze_financial_data(
     Complete end-to-end financial analysis that retrieves data from database and provides insights.
     
     This function combines data retrieval and analysis to provide comprehensive financial insights
-    based on the user's question and specified filters.
+    based on the user's question and specified filters. It ONLY provides insights based on 
+    actual transaction data from the user's database.
     
     Args:
         user_id: User identifier
@@ -214,37 +215,96 @@ def analyze_financial_data(
         return {
             "error": "No transaction data found for the specified criteria",
             "transactions": [],
-            "analysis": None
+            "analysis": {
+                "natural_language_answer": f"I couldn't find any transactions matching your query '{query_text}' for the specified criteria. You may want to try a different date range or category.",
+                "structured_data": {}
+            },
+            "query": query_text,
+            "data_count": 0
         }
     
     if isinstance(transactions, list) and len(transactions) > 0 and "error" in transactions[0]:
         return {
             "error": transactions[0]["error"],
             "transactions": [],
-            "analysis": None
+            "analysis": {
+                "natural_language_answer": f"I encountered an error while retrieving your transaction data: {transactions[0]['error']}",
+                "structured_data": {}
+            },
+            "query": query_text,
+            "data_count": 0
         }
     
-    # Step 3: Perform analysis using Gemini
-    analysis_result = summarize_transactions(transactions, query_text)
-    
-    # Step 4: Return combined result
-    return {
-        "transactions": transactions,
-        "analysis": analysis_result,
-        "query": query_text,
-        "filters_applied": {
-            "start_date": start_date,
-            "end_date": end_date,
-            "category": category,
-            "store_name": store_name,
-            "item_name": item_name,
-            "currency": currency,
-            "city": city,
-            "state": state,
-            "country": country,
-            "postal_code": postal_code
+    # Step 3: Perform analysis using Gemini with strict instructions
+    if not GEMINI_API_KEY:
+        return {
+            "error": "GEMINI_API_KEY is not configured.",
+            "transactions": transactions,
+            "analysis": {
+                "natural_language_answer": "I found your transaction data but cannot perform AI analysis due to configuration issues.",
+                "structured_data": {}
+            },
+            "query": query_text,
+            "data_count": len(transactions)
         }
-    }
+
+    model = genai.GenerativeModel('gemini-2.5-flash')
+    
+    # Enhanced prompt with strict instructions to only use provided data
+    prompt = f"""You are a financial analyst. The user wants to know: '{query_text}'.
+
+STRICT INSTRUCTIONS:
+- ONLY analyze the provided transaction data below
+- DO NOT make up or estimate any numbers
+- If the data doesn't contain information to answer the question, say so clearly
+- Calculate exact amounts from the provided data
+- Always specify the currency and time period of the data you're analyzing
+- Provide specific transaction details when relevant
+
+Analyze the following ACTUAL transaction data (in JSON format): {json.dumps(transactions, indent=2)}
+
+Based ONLY on this real data, provide:
+1. A natural language answer that includes specific amounts, dates, and stores from the data
+2. Structured data for visualization (charts, graphs) based on the actual transactions
+
+Respond with a JSON object containing 'natural_language_answer' and 'structured_data'."""
+
+    try:
+        response = model.generate_content(prompt)
+        analysis_result = json.loads(response.text)
+        
+        # Step 4: Return combined result with actual data
+        return {
+            "transactions": transactions,
+            "analysis": analysis_result,
+            "query": query_text,
+            "data_count": len(transactions),
+            "date_range": {
+                "start": start_date,
+                "end": end_date
+            },
+            "filters_applied": {
+                "category": category,
+                "store_name": store_name,
+                "item_name": item_name,
+                "currency": currency,
+                "city": city,
+                "state": state,
+                "country": country,
+                "postal_code": postal_code
+            }
+        }
+    except Exception as e:
+        return {
+            "error": f"Analysis error: {e}",
+            "transactions": transactions,
+            "analysis": {
+                "natural_language_answer": f"I found {len(transactions)} transactions but couldn't complete the AI analysis due to a technical error.",
+                "structured_data": {}
+            },
+            "query": query_text,
+            "data_count": len(transactions)
+        }
 
 
 def summarize_transactions(transactions: list, query_text: str) -> dict:

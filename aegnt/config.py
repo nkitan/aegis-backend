@@ -12,7 +12,7 @@ load_dotenv()
 
 # The base URL for the backend API.
 # Replace "http://localhost:8000" with the actual URL of your backend server.
-BACKEND_API_BASE_URL = os.getenv("BACKEND_API_BASE_URL", "http://localhost:8000")
+BACKEND_API_BASE_URL = os.getenv("BACKEND_API_BASE_URL", "http://localhost:8000/api/v1")
 
 # The API key for the Gemini API, used for generative tasks.
 # It is recommended to set this as an environment variable for security.
