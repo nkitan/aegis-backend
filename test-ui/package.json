@@ -1,0 +1,17 @@
+{
+  "name": "project-aegis-test-ui",
+  "version": "1.0.0",
+  "description": "Test UI for Project Aegis APIs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  },
+  "keywords": ["aegis", "ui", "test", "api"],
+  "author": "Project Aegis Team",
+  "license": "MIT"
+}

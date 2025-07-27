@@ -13,7 +13,7 @@ This document contains comprehensive curl commands for testing all the APIs and 
    - [Proactive Analysis](#proactive-analysis)
    - [Calendar Integration](#calendar-integration)
    - [Push Notifications](#push-notifications)
-2. [Aegnt Service Endpoints](#aegnt-service-endpoints)
+2. [Advanced Agent Queries](#advanced-agent-queries)
    - [Natural Language Financial Queries](#natural-language-financial-queries)
    - [Virtual Pantry & Recipe Suggestions](#virtual-pantry--recipe-suggestions)
    - [Proactive Insights](#proactive-insights)
@@ -330,55 +330,50 @@ curl -X POST "http://localhost:8000/api/v1/integrations/notifications/send" \
 
 ---
 
-## Aegnt Service Endpoints
+## Advanced Agent Queries
 
 ### Natural Language Financial Queries
 
 #### Direct Agent Invocation
 ```bash
 # General financial analysis
-curl -X POST "http://localhost:5000/invoke_agent" \
+curl -X POST "http://localhost:8000/api/v1/users/me/agent/invoke" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer test_token" \
   -d '{
-    "user_id": "vg21F4xzYJdg5yikFrEDAotLqli1",
-    "prompt": "Analyze my spending patterns for the last 6 months",
-    "id_token": "test_token"
+    "prompt": "Analyze my spending patterns for the last 6 months"
   }'
 
 # Spending by category
-curl -X POST "http://localhost:5000/invoke_agent" \
+curl -X POST "http://localhost:8000/api/v1/users/me/agent/invoke" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer test_token" \
   -d '{
-    "user_id": "vg21F4xzYJdg5yikFrEDAotLqli1",
-    "prompt": "How much did I spend on entertainment last month?",
-    "id_token": "test_token"
+    "prompt": "How much did I spend on entertainment last month?"
   }'
 
 # Budget recommendations
-curl -X POST "http://localhost:5000/invoke_agent" \
+curl -X POST "http://localhost:8000/api/v1/users/me/agent/invoke" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer test_token" \
   -d '{
-    "user_id": "vg21F4xzYJdg5yikFrEDAotLqli1",
-    "prompt": "Help me create a budget based on my spending history",
-    "id_token": "test_token"
+    "prompt": "Help me create a budget based on my spending history"
   }'
 
 # Expense anomaly detection
-curl -X POST "http://localhost:5000/invoke_agent" \
+curl -X POST "http://localhost:8000/api/v1/users/me/agent/invoke" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer test_token" \
   -d '{
-    "user_id": "vg21F4xzYJdg5yikFrEDAotLqli1",
-    "prompt": "Are there any unusual spending patterns in my recent transactions?",
-    "id_token": "test_token"
+    "prompt": "Are there any unusual spending patterns in my recent transactions?"
   }'
 
 # Financial goal planning
-curl -X POST "http://localhost:5000/invoke_agent" \
+curl -X POST "http://localhost:8000/api/v1/users/me/agent/invoke" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer test_token" \
   -d '{
-    "user_id": "vg21F4xzYJdg5yikFrEDAotLqli1",
-    "prompt": "Help me plan to save $5000 for vacation next year",
-    "id_token": "test_token"
+    "prompt": "Help me plan to save $5000 for vacation next year"
   }'
 ```
 
@@ -389,39 +384,35 @@ curl -X POST "http://localhost:5000/invoke_agent" \
 #### Get Recipe Suggestions Based on Recent Purchases
 ```bash
 # Generic recipe suggestions
-curl -X POST "http://localhost:5000/invoke_agent" \
+curl -X POST "http://localhost:8000/api/v1/users/me/agent/invoke" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer test_token" \
   -d '{
-    "user_id": "vg21F4xzYJdg5yikFrEDAotLqli1",
-    "prompt": "What can I cook with the ingredients from my recent grocery purchases?",
-    "id_token": "test_token"
+    "prompt": "What can I cook with the ingredients from my recent grocery purchases?"
   }'
 
 # Dietary preference-based suggestions
-curl -X POST "http://localhost:5000/invoke_agent" \
+curl -X POST "http://localhost:8000/api/v1/users/me/agent/invoke" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer test_token" \
   -d '{
-    "user_id": "vg21F4xzYJdg5yikFrEDAotLqli1",
-    "prompt": "Suggest healthy vegetarian recipes based on my recent purchases",
-    "id_token": "test_token"
+    "prompt": "Suggest healthy vegetarian recipes based on my recent purchases"
   }'
 
 # Quick meal suggestions
-curl -X POST "http://localhost:5000/invoke_agent" \
+curl -X POST "http://localhost:8000/api/v1/users/me/agent/invoke" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer test_token" \
   -d '{
-    "user_id": "vg21F4xzYJdg5yikFrEDAotLqli1",
-    "prompt": "I need a quick 30-minute dinner recipe using ingredients I recently bought",
-    "id_token": "test_token"
+    "prompt": "I need a quick 30-minute dinner recipe using ingredients I recently bought"
   }'
 
 # Meal planning
-curl -X POST "http://localhost:5000/invoke_agent" \
+curl -X POST "http://localhost:8000/api/v1/users/me/agent/invoke" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer test_token" \
   -d '{
-    "user_id": "vg21F4xzYJdg5yikFrEDAotLqli1",
-    "prompt": "Plan a week of meals using ingredients from my pantry",
-    "id_token": "test_token"
+    "prompt": "Plan a week of meals using ingredients from my pantry"
   }'
 ```
 
@@ -431,30 +422,27 @@ curl -X POST "http://localhost:5000/invoke_agent" \
 
 #### Get Proactive Financial Insights
 ```bash
-curl -X POST "http://localhost:5000/invoke_agent" \
+curl -X POST "http://localhost:8000/api/v1/users/me/agent/invoke" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer test_token" \
   -d '{
-    "user_id": "vg21F4xzYJdg5yikFrEDAotLqli1",
-    "prompt": "Give me proactive insights about my financial health",
-    "id_token": "test_token"
+    "prompt": "Give me proactive insights about my financial health"
   }'
 
 # Request specific insights
-curl -X POST "http://localhost:5000/invoke_agent" \
+curl -X POST "http://localhost:8000/api/v1/users/me/agent/invoke" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer test_token" \
   -d '{
-    "user_id": "vg21F4xzYJdg5yikFrEDAotLqli1",
-    "prompt": "Schedule weekly spending reports and budget alerts",
-    "id_token": "test_token"
+    "prompt": "Schedule weekly spending reports and budget alerts"
   }'
 
 # Trend analysis
-curl -X POST "http://localhost:5000/invoke_agent" \
+curl -X POST "http://localhost:8000/api/v1/users/me/agent/invoke" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer test_token" \
   -d '{
-    "user_id": "vg21F4xzYJdg5yikFrEDAotLqli1",
-    "prompt": "Analyze my spending trends and predict next month expenses",
-    "id_token": "test_token"
+    "prompt": "Analyze my spending trends and predict next month expenses"
   }'
 ```
 
@@ -472,10 +460,7 @@ export GOOGLE_WALLET_SERVICE_ACCOUNT_KEY_FILE="/path/to/service-account-key.json
 export GOOGLE_APPLICATION_CREDENTIALS="/path/to/firebase-credentials.json"
 export GEMINI_API_KEY="your_gemini_api_key"
 export GOOGLE_MAPS_API_KEY="your_google_maps_api_key"
-
-# Aegnt configuration
 export SPOONACULAR_API_KEY="your_spoonacular_api_key"
-export AEGNT_API_URL="http://localhost:5000"
 ```
 
 ### Running the Services
@@ -485,13 +470,7 @@ export AEGNT_API_URL="http://localhost:5000"
    cd backend
    python main.py
    # Runs on http://localhost:8000
-   ```
-
-2. **Start Aegnt Service:**
-   ```bash
-   cd aegnt
-   python main_agent.py
-   # Runs on http://localhost:5000
+   # Includes integrated agent functionality
    ```
 
 ---
@@ -521,12 +500,11 @@ curl -X POST "http://localhost:8000/api/v1/users/me/agent/invoke" \
 ### Financial Analysis Flow
 ```bash
 # 1. Analyze spending patterns
-curl -X POST "http://localhost:5000/invoke_agent" \
+curl -X POST "http://localhost:8000/api/v1/users/me/agent/invoke" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer test_token" \
   -d '{
-    "user_id": "vg21F4xzYJdg5yikFrEDAotLqli1",
-    "prompt": "Analyze my spending for the last 3 months",
-    "id_token": "test_token"
+    "prompt": "Analyze my spending for the last 3 months"
   }'
 
 # 2. Create a savings challenge based on analysis
@@ -546,7 +524,7 @@ curl -X POST "http://localhost:8000/api/v1/tasks/proactive_analysis" \
   -d '{"user_id": "vg21F4xzYJdg5yikFrEDAotLqli1"}'
 ```
 
-This comprehensive test suite covers all major functionality in the Project Aegis system, from receipt processing and Google Wallet integration to natural language financial analysis and virtual pantry recipe suggestions.
+This comprehensive test suite covers all major functionality in the Project Aegis system, from receipt processing and Google Wallet integration to natural language financial analysis and virtual pantry recipe suggestions. All agent functionality is now accessed through the backend API for better integration and security.
 
 ---
 
@@ -580,9 +558,9 @@ This comprehensive test suite covers all major functionality in the Project Aegi
 
 #### Service Connectivity Issues
 - **Problem**: Connection refused errors
-  - **Solution**: Ensure both services are running:
+  - **Solution**: Ensure the backend service is running:
     - Backend: `cd backend && python main.py` (port 8000)
-    - Aegnt: `cd aegnt && python main_agent.py` (port 5000)
+    - The backend includes integrated agent functionality, so no separate agent service is needed.
 
 #### Environment Configuration Issues
 - **Problem**: Missing API keys or service account files

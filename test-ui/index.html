@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Aegis - Demo UI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            padding: 30px;
+        }
+
+        .feature-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            border: 1px solid #e9ecef;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        .feature-card h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .feature-icon {
+            width: 30px;
+            height: 30px;
+            background: #4285f4;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 16px;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-input-label {
+            display: block;
+            padding: 12px 20px;
+            background: #4285f4;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            transition: background 0.3s ease;
+        }
+
+        .file-input-label:hover {
+            background: #3367d6;
+        }
+
+        .button {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s ease;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .button:hover {
+            background: #3367d6;
+        }
+
+        .button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .button.success {
+            background: #34a853;
+        }
+
+        .button.success:hover {
+            background: #2d8f47;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 16px;
+            margin-bottom: 15px;
+            transition: border-color 0.3s ease;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: #4285f4;
+        }
+
+        .response-area {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .response-area pre {
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #4285f4;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .wallet-button {
+            background: #34a853;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background 0.3s ease;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .wallet-button:hover {
+            background: #2d8f47;
+        }
+
+        .insight-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .config-section {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 30px;
+        }
+
+        .config-section h4 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+
+        .config-input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏛️ Project Aegis</h1>
+            <p>Your AI-Powered Financial Assistant - Demo Interface</p>
+        </div>
+
+        <div class="config-section">
+            <h4>⚙️ API Configuration</h4>
+            <input type="text" id="backendUrl" class="config-input" placeholder="Backend URL (e.g., http://localhost:8000)" value="http://localhost:8000">
+            <input type="text" id="authToken" class="config-input" placeholder="Auth Token (e.g., test_token)" value="test_token">
+            <input type="text" id="userId" class="config-input" placeholder="User ID (e.g., vg21F4xzYJdg5yikFrEDAotLqli1)" value="vg21F4xzYJdg5yikFrEDAotLqli1">
+        </div>
+
+        <div class="features-grid">
+            <!-- Receipt Scanning Feature -->
+            <div class="feature-card">
+                <h3>
+                    <div class="feature-icon">📸</div>
+                    Receipt Scanner
+                </h3>
+                <p>Upload a receipt image to extract transaction data and get a Google Wallet pass.</p>
+                
+                <div class="file-input-wrapper">
+                    <input type="file" id="receiptFile" class="file-input" accept="image/*">
+                    <label for="receiptFile" class="file-input-label">
+                        📱 Choose Receipt Image
+                    </label>
+                </div>
+                
+                <button id="scanReceipt" class="button" disabled>
+                    <span id="scanLoader" class="loading" style="display: none;"></span>
+                    Process Receipt
+                </button>
+                
+                <button id="addToWallet" class="wallet-button" onclick="openWalletPass()">
+                    🎫 Add to Google Wallet
+                </button>
+                
+                <div id="receiptResponse" class="response-area" style="display: none;"></div>
+            </div>
+
+            <!-- Proactive Insights Feature -->
+            <div class="feature-card">
+                <h3>
+                    <div class="feature-icon">💡</div>
+                    Proactive Insights
+                </h3>
+                <p>Get AI-powered financial insights and recommendations based on your spending patterns.</p>
+                
+                <button id="getInsight" class="button">
+                    <span id="insightLoader" class="loading" style="display: none;"></span>
+                    Get Random Insight
+                </button>
+                
+                <div id="insightCard" class="insight-card">
+                    <div id="insightContent"></div>
+                </div>
+                
+                <div id="insightResponse" class="response-area" style="display: none;"></div>
+            </div>
+
+            <!-- Natural Language Finance Questions -->
+            <div class="feature-card">
+                <h3>
+                    <div class="feature-icon">💬</div>
+                    Ask Finance Questions
+                </h3>
+                <p>Ask questions about your finances in natural language and get AI-powered answers.</p>
+                
+                <input type="text" id="financeQuestion" class="input-field" 
+                       placeholder="e.g., How much did I spend on restaurants last month?">
+                
+                <button id="askQuestion" class="button">
+                    <span id="questionLoader" class="loading" style="display: none;"></span>
+                    Ask Question
+                </button>
+                
+                <div id="financeResponse" class="response-area" style="display: none;"></div>
+            </div>
+
+            <!-- Virtual Pantry / Recipe Suggestions -->
+            <div class="feature-card">
+                <h3>
+                    <div class="feature-icon">🍳</div>
+                    Recipe Suggestions
+                </h3>
+                <p>Get recipe recommendations based on your recent grocery purchases (Virtual Pantry).</p>
+                
+                <input type="text" id="recipePrefs" class="input-field" 
+                       placeholder="Any dietary preferences? (optional)">
+                
+                <button id="getRecipe" class="button">
+                    <span id="recipeLoader" class="loading" style="display: none;"></span>
+                    Get Recipe Ideas
+                </button>
+                
+                <div id="recipeResponse" class="response-area" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let walletPassUrl = null;
+
+        // File input handling
+        document.getElementById('receiptFile').addEventListener('change', function(e) {
+            const button = document.getElementById('scanReceipt');
+            button.disabled = !e.target.files.length;
+        });
+
+        // Receipt scanning functionality
+        document.getElementById('scanReceipt').addEventListener('click', async function() {
+            const fileInput = document.getElementById('receiptFile');
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            const button = this;
+            const loader = document.getElementById('scanLoader');
+            const responseDiv = document.getElementById('receiptResponse');
+            const walletButton = document.getElementById('addToWallet');
+
+            button.disabled = true;
+            loader.style.display = 'inline-block';
+            responseDiv.style.display = 'none';
+            walletButton.style.display = 'none';
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await fetch(`${getBackendUrl()}/api/v1/transactions/process`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${getAuthToken()}`
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                responseDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                responseDiv.style.display = 'block';
+
+                if (data.google_wallet_pass_url) {
+                    walletPassUrl = data.google_wallet_pass_url;
+                    walletButton.style.display = 'block';
+                }
+
+            } catch (error) {
+                responseDiv.innerHTML = `<pre>Error: ${error.message}</pre>`;
+                responseDiv.style.display = 'block';
+            }
+
+            button.disabled = false;
+            loader.style.display = 'none';
+        });
+
+        // Proactive insights functionality
+        document.getElementById('getInsight').addEventListener('click', async function() {
+            const button = this;
+            const loader = document.getElementById('insightLoader');
+            const insightCard = document.getElementById('insightCard');
+            const insightContent = document.getElementById('insightContent');
+            const responseDiv = document.getElementById('insightResponse');
+
+            button.disabled = true;
+            loader.style.display = 'inline-block';
+            insightCard.style.display = 'none';
+            responseDiv.style.display = 'none';
+
+            try {
+                const response = await fetch(`${getBackendUrl()}/api/v1/users/me/agent/invoke`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getAuthToken()}`
+                    },
+                    body: JSON.stringify({
+                        prompt: "Give me a proactive insight about my financial health and spending patterns"
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.response) {
+                    insightContent.textContent = data.response;
+                    insightCard.style.display = 'block';
+                } else {
+                    responseDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    responseDiv.style.display = 'block';
+                }
+
+            } catch (error) {
+                responseDiv.innerHTML = `<pre>Error: ${error.message}</pre>`;
+                responseDiv.style.display = 'block';
+            }
+
+            button.disabled = false;
+            loader.style.display = 'none';
+        });
+
+        // Finance questions functionality
+        document.getElementById('askQuestion').addEventListener('click', async function() {
+            const question = document.getElementById('financeQuestion').value.trim();
+            if (!question) return;
+
+            const button = this;
+            const loader = document.getElementById('questionLoader');
+            const responseDiv = document.getElementById('financeResponse');
+
+            button.disabled = true;
+            loader.style.display = 'inline-block';
+            responseDiv.style.display = 'none';
+
+            try {
+                const response = await fetch(`${getBackendUrl()}/api/v1/users/me/agent/invoke`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getAuthToken()}`
+                    },
+                    body: JSON.stringify({
+                        prompt: question
+                    })
+                });
+
+                const data = await response.json();
+                responseDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                responseDiv.style.display = 'block';
+
+            } catch (error) {
+                responseDiv.innerHTML = `<pre>Error: ${error.message}</pre>`;
+                responseDiv.style.display = 'block';
+            }
+
+            button.disabled = false;
+            loader.style.display = 'none';
+        });
+
+        // Recipe suggestions functionality
+        document.getElementById('getRecipe').addEventListener('click', async function() {
+            const preferences = document.getElementById('recipePrefs').value.trim();
+            const button = this;
+            const loader = document.getElementById('recipeLoader');
+            const responseDiv = document.getElementById('recipeResponse');
+
+            button.disabled = true;
+            loader.style.display = 'inline-block';
+            responseDiv.style.display = 'none';
+
+            try {
+                let prompt = "What can I cook with the ingredients from my recent grocery purchases?";
+                if (preferences) {
+                    prompt += ` I prefer ${preferences}.`;
+                }
+
+                const response = await fetch(`${getBackendUrl()}/api/v1/users/me/agent/invoke`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getAuthToken()}`
+                    },
+                    body: JSON.stringify({
+                        prompt: prompt
+                    })
+                });
+
+                const data = await response.json();
+                responseDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                responseDiv.style.display = 'block';
+
+            } catch (error) {
+                responseDiv.innerHTML = `<pre>Error: ${error.message}</pre>`;
+                responseDiv.style.display = 'block';
+            }
+
+            button.disabled = false;
+            loader.style.display = 'none';
+        });
+
+        // Utility functions
+        function getBackendUrl() {
+            return document.getElementById('backendUrl').value || 'http://localhost:8000';
+        }
+
+        function getAuthToken() {
+            return document.getElementById('authToken').value || 'test_token';
+        }
+
+        function getUserId() {
+            return document.getElementById('userId').value || 'vg21F4xzYJdg5yikFrEDAotLqli1';
+        }
+
+        function openWalletPass() {
+            if (walletPassUrl) {
+                window.open(walletPassUrl, '_blank');
+            }
+        }
+
+        // Allow Enter key for finance questions
+        document.getElementById('financeQuestion').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('askQuestion').click();
+            }
+        });
+    </script>
+</body>
+</html>
