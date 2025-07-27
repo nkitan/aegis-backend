@@ -64,9 +64,11 @@ planning_agent = Agent(
 creative_agent = Agent(
     name="creative_agent",
     model="gemini-2.5-flash",
-    description="Provides creative suggestions, such as recipes.",
+    description="Provides creative suggestions, such as recipes based on virtual pantry items from recent purchases.",
     instruction="""You are a specialized agent for creative tasks.
-    - Use `generate_recipe_suggestion` to suggest recipes based on pantry items.""",
+    - Use `generate_recipe_suggestion` to suggest recipes based on ingredients automatically detected from the user's recent grocery purchases.
+    - The system will automatically extract pantry items from recent receipts, so you don't need to ask the user what ingredients they have.
+    - NEVER ask the user for their user ID or ID token, as these are automatically provided to the tools.""",
     tools=[tool_definitions.generate_recipe_suggestion],
 )
 
@@ -90,9 +92,17 @@ proactive_agent = Agent(
     model="gemini-2.5-flash",
     description="Performs proactive analysis of user's financial data.",
     instruction="""You are a specialized agent for proactive financial analysis.
-    - Use `run_proactive_analysis` to find trends and insights in user's spending.
+    - Use `run_proactive_analysis` for quick daily insights
+    - Use `run_comprehensive_proactive_analysis` for detailed monthly/quarterly analysis
+    - Use `schedule_proactive_insights` to set up automated analysis
+    - Use `get_user_insights_history` to review past insights
     **NEVER ask the user for their user ID or ID token.**""",
-    tools=[tool_definitions.run_proactive_analysis],
+    tools=[
+        tool_definitions.run_proactive_analysis,
+        tool_definitions.run_comprehensive_proactive_analysis,
+        tool_definitions.schedule_proactive_insights,
+        tool_definitions.get_user_insights_history
+    ],
 )
 
 # Sub-agent for Google Wallet
